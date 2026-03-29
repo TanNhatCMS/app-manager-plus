@@ -1,6 +1,26 @@
 {
   "apps": [
     {
+      "packageName": "app.morphe.android.youtube",
+      "title": "Youtube Morphe Thử nghiệm",
+      "latestVersion": "21.13.163",
+      "description": "Youtube Morphe v21.13.163 (Morphe Patches v1.23.0-dev.1)",
+      "iconUrl": "https://avatars.githubusercontent.com/u/246280111?s=48&v=4",
+      "downloadUrl": "https://github.com/TanNhatCMS/app-manager-plus/releases/download/1.0.0/YouTube_Morphe-v21.13.163-v1.23.0-dev.1.apk",
+      "requiresMicroG": true,
+      "index": 1
+    },
+    {
+      "packageName": "app.morphe.android.youtube",
+      "title": "Youtube Morphe Ổn định",
+      "latestVersion": "20.45.36",
+      "description": "Youtube Morphe v20.45.36 (Morphe Patches v1.22.0)",
+      "iconUrl": "https://avatars.githubusercontent.com/u/246280111?s=48&v=4",
+      "downloadUrl": "https://github.com/TanNhatCMS/app-manager-plus/releases/download/1.0.0/YouTube_Morphe-v20.45.36-v1.22.0.apk",
+      "requiresMicroG": true,
+      "index": 2
+    },
+    {
       "packageName": "app.revanced.android.gms",
       "title": "MicroG RE",
       "latestVersion": "6.1.1",
@@ -8,9 +28,9 @@
       "iconUrl": "https://avatars.githubusercontent.com/u/246280111?s=48&v=4",
       "downloadUrl": "https://github.com/MorpheApp/MicroG-RE/releases/download/6.1.1/microg-6.1.1.apk",
       "requiresMicroG": false,
-      "index": 1
+      "index": 3
     },
-     {
+    {
       "packageName": "app.revanced.android.gms",
       "title": "MicroG",
       "latestVersion": "0.3.13.2.250932",
@@ -18,9 +38,9 @@
       "iconUrl": "https://avatars.githubusercontent.com/u/101597779?s=48&v=4",
       "downloadUrl": "https://github.com/ReVanced/GmsCore/releases/download/v0.3.13.2.250932/app.revanced.android.gms-250932004-signed.apk",
       "requiresMicroG": false,
-      "index": 2
+      "index": 4
     },
-     {
+    {
       "packageName": "app.revanced.android.gms",
       "title": "MicroG",
       "latestVersion": "0.3.13.2.250932",
@@ -28,7 +48,7 @@
       "iconUrl": "https://avatars.githubusercontent.com/u/101597779?s=48&v=4",
       "downloadUrl": "https://github.com/ReVanced/GmsCore/releases/download/v0.3.13.2.250932/app.revanced.android.gms-250932004-hw-signed.apk",
       "requiresMicroG": false,
-      "index": 3
+      "index": 5
     }
   ]
 }
