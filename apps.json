@@ -21,6 +21,16 @@
       "index": 2
     },
     {
+      "packageName": "app.revanced.android.youtube",
+      "title": "Youtube Revanded Ổn định",
+      "latestVersion": "20.40.45",
+      "description": "Youtube Revanded v20.40.45 (ReVanced Patches v6.1.0)",
+      "iconUrl": "https://avatars.githubusercontent.com/u/246280111?s=48&v=4",
+      "downloadUrl": "https://github.com/TanNhatCMS/app-manager-plus/releases/download/1.0.0/YouTube_ReVanced-v20.40.45-v6.1.0.apk",
+      "requiresMicroG": true,
+      "index": 3
+    },
+    {
       "packageName": "app.revanced.android.gms",
       "title": "MicroG RE",
       "latestVersion": "6.1.1",
@@ -28,7 +38,7 @@
       "iconUrl": "https://avatars.githubusercontent.com/u/246280111?s=48&v=4",
       "downloadUrl": "https://github.com/MorpheApp/MicroG-RE/releases/download/6.1.1/microg-6.1.1.apk",
       "requiresMicroG": false,
-      "index": 3
+      "index": 4
     },
     {
       "packageName": "app.revanced.android.gms",
@@ -38,7 +48,7 @@
       "iconUrl": "https://avatars.githubusercontent.com/u/101597779?s=48&v=4",
       "downloadUrl": "https://github.com/ReVanced/GmsCore/releases/download/v0.3.13.2.250932/app.revanced.android.gms-250932004-signed.apk",
       "requiresMicroG": false,
-      "index": 4
+      "index": 5
     },
     {
       "packageName": "app.revanced.android.gms",
@@ -48,7 +58,7 @@
       "iconUrl": "https://avatars.githubusercontent.com/u/101597779?s=48&v=4",
       "downloadUrl": "https://github.com/ReVanced/GmsCore/releases/download/v0.3.13.2.250932/app.revanced.android.gms-250932004-hw-signed.apk",
       "requiresMicroG": false,
-      "index": 5
+      "index": 6
     }
   ]
 }
