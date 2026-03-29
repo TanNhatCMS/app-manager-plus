@@ -1,6 +1,16 @@
 {
   "apps": [
     {
+      "packageName": "com.app.manager",
+      "title": "App Manager Plus",
+      "latestVersion": "1.0.0",
+      "description": "App Manager Plus v1.0.0 by TanNhatCMS(KietNT)",
+      "iconUrl": "https://avatars.githubusercontent.com/u/101597779?s=48&v=4",
+      "downloadUrl": "https://github.com/TanNhatCMS/app-manager-plus/releases/download/1.0.0/App_Manager_Plus-v1.0.0.apk",
+      "requiresMicroG": true,
+      "index": 1
+    },
+    {
       "packageName": "app.morphe.android.youtube",
       "title": "Youtube Morphe Thử nghiệm",
       "latestVersion": "21.13.163",
@@ -8,7 +18,7 @@
       "iconUrl": "https://avatars.githubusercontent.com/u/246280111?s=48&v=4",
       "downloadUrl": "https://github.com/TanNhatCMS/app-manager-plus/releases/download/1.0.0/YouTube_Morphe-v21.13.163-v1.23.0-dev.1.apk",
       "requiresMicroG": true,
-      "index": 1
+      "index": 2
     },
     {
       "packageName": "app.morphe.android.youtube",
@@ -18,7 +28,7 @@
       "iconUrl": "https://avatars.githubusercontent.com/u/246280111?s=48&v=4",
       "downloadUrl": "https://github.com/TanNhatCMS/app-manager-plus/releases/download/1.0.0/YouTube_Morphe-v20.45.36-v1.22.0.apk",
       "requiresMicroG": true,
-      "index": 2
+      "index": 3
     },
     {
       "packageName": "app.revanced.android.youtube",
@@ -28,7 +38,7 @@
       "iconUrl": "https://avatars.githubusercontent.com/u/246280111?s=48&v=4",
       "downloadUrl": "https://github.com/TanNhatCMS/app-manager-plus/releases/download/1.0.0/YouTube_ReVanced-v20.40.45-v6.1.0.apk",
       "requiresMicroG": true,
-      "index": 3
+      "index": 4
     },
     {
       "packageName": "app.revanced.android.gms",
@@ -38,7 +48,7 @@
       "iconUrl": "https://avatars.githubusercontent.com/u/246280111?s=48&v=4",
       "downloadUrl": "https://github.com/MorpheApp/MicroG-RE/releases/download/6.1.1/microg-6.1.1.apk",
       "requiresMicroG": false,
-      "index": 4
+      "index": 5
     },
     {
       "packageName": "app.revanced.android.gms",
@@ -48,7 +58,7 @@
       "iconUrl": "https://avatars.githubusercontent.com/u/101597779?s=48&v=4",
       "downloadUrl": "https://github.com/ReVanced/GmsCore/releases/download/v0.3.13.2.250932/app.revanced.android.gms-250932004-signed.apk",
       "requiresMicroG": false,
-      "index": 5
+      "index": 6
     },
     {
       "packageName": "app.revanced.android.gms",
@@ -58,7 +68,7 @@
       "iconUrl": "https://avatars.githubusercontent.com/u/101597779?s=48&v=4",
       "downloadUrl": "https://github.com/ReVanced/GmsCore/releases/download/v0.3.13.2.250932/app.revanced.android.gms-250932004-hw-signed.apk",
       "requiresMicroG": false,
-      "index": 6
+      "index": 7
     }
   ]
 }
