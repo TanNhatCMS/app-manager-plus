@@ -45,7 +45,9 @@ object ProviderModule {
             context,
             RevancedDatabase::class.java,
             RevancedDatabase.DATABASE_NAME
-        ).build()
+        )
+            .fallbackToDestructiveMigration()
+            .build()
     }
     
     @Provides

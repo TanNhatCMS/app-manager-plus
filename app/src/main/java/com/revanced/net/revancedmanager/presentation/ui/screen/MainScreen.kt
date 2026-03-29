@@ -24,7 +24,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
@@ -451,10 +451,10 @@ private fun AppListScreen(
         }
 
         // App cards
-        items(
+        itemsIndexed(
             items = apps,
-            key = { app -> app.packageName }
-        ) { app ->
+            key = { index, app -> "${app.packageName}#${index}" }
+        ) { _, app ->
             AppCard(
                 app = app,
                 onDownloadClick = {

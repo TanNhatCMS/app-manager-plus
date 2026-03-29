@@ -7,8 +7,8 @@ import androidx.room.Query
 
 @Dao
 interface DownloadStateDao {
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun upsert(state: DownloadStateEntity)
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insert(state: DownloadStateEntity)
 
     @Query("SELECT * FROM download_states WHERE status = :status")
     suspend fun getByStatus(status: String): List<DownloadStateEntity>

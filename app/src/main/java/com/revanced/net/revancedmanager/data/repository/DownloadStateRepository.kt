@@ -12,6 +12,7 @@ class DownloadStateRepository @Inject constructor(
     suspend fun markDownloadCompleted(packageName: String, filePath: String) {
         val now = System.currentTimeMillis()
         val existing = DownloadStateEntity(
+            id = 0,
             packageName = packageName,
             appName = packageName,
             filePath = filePath,
@@ -20,7 +21,7 @@ class DownloadStateRepository @Inject constructor(
             createdAt = now,
             updatedAt = now
         )
-        dao.upsert(existing)
+        dao.insert(existing)
     }
 
     suspend fun getCompletedDownloads(): List<DownloadState> {
