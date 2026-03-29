@@ -1,0 +1,824 @@
+package com.app.manager.presentation.ui.screen
+
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.Coffee
+import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.app.manager.R
+import com.app.manager.presentation.bloc.AppBloc
+import com.app.manager.presentation.bloc.AppEvent
+import com.app.manager.presentation.bloc.AppFilterOption
+import com.app.manager.presentation.bloc.AppLogEntry
+import com.app.manager.presentation.bloc.AppState
+import com.app.manager.presentation.bloc.DialogState
+import com.app.manager.presentation.ui.components.AppCard
+import com.app.manager.presentation.ui.components.ConfigDialog
+import kotlinx.coroutines.delay
+
+/**
+ * Main screen of the ReVanced Manager app
+ * Updated with improved dialog handling and better UX
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun MainScreen(
+    viewModel: AppBloc = hiltViewModel()
+) {
+    val state by viewModel.state.collectAsState()
+    val toastMessage by viewModel.toastMessage.collectAsState()
+    val context = LocalContext.current
+    
+    // Remember the current toast to cancel it when a new one appears
+    var currentToast by remember { mutableStateOf<Toast?>(null) }
+
+    // Handle toast messages with cancellation of previous toast
+    LaunchedEffect(toastMessage) {
+        toastMessage?.let { message ->
+            // Cancel any existing toast immediately
+            currentToast?.cancel()
+            
+            // Create and show new toast with shorter duration
+            val newToast = Toast.makeText(context, message, Toast.LENGTH_SHORT).apply {
+                duration = Toast.LENGTH_SHORT
+            }
+            
+            currentToast = newToast
+            newToast.show()
+            
+            // Clear the toast message from ViewModel
+            viewModel.clearToast()
+            
+            // Auto-dismiss the toast after a shorter time (1 second instead of 2)
+            delay(1000)
+            newToast.cancel()
+            currentToast = null
+        }
+    }
+
+    Scaffold(
+        floatingActionButton = {
+            Row {
+                FloatingActionButton(
+                    onClick = {
+                        viewModel.handleEvent(AppEvent.ShowConfigDialog)
+                    }
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Settings,
+                        contentDescription = "Settings"
+                    )
+                }
+                Spacer(modifier = Modifier.width(16.dp))
+                FloatingActionButton(
+                    onClick = {
+                        viewModel.handleEvent(AppEvent.RefreshApps)
+                    }
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Refresh,
+                        contentDescription = "Refresh apps"
+                    )
+                }
+            }
+        }
+    ) { paddingValues ->
+        when (val currentState = state) {
+            is AppState.Loading -> {
+                LoadingScreen(modifier = Modifier.padding(paddingValues))
+            }
+            is AppState.Success -> {
+                AppListScreen(
+                    apps = currentState.filteredApps,
+                    searchQuery = currentState.searchQuery,
+                    filterOption = currentState.filterOption,
+                    onSearchQueryChange = { query ->
+                        viewModel.handleEvent(AppEvent.SearchApps(query))
+                    },
+                    onClearSearch = {
+                        viewModel.handleEvent(AppEvent.ClearSearch)
+                    },
+                    onFilterChange = { filter ->
+                        viewModel.handleEvent(AppEvent.SetFilter(filter))
+                    },
+                    onEvent = viewModel::handleEvent,
+                    isCompactMode = currentState.config.compactMode,
+                    modifier = Modifier.padding(paddingValues)
+                )
+                
+                // Handle dialogs
+                currentState.dialogState?.let { dialogState ->
+                    when (dialogState) {
+                        is DialogState.Confirmation -> {
+                            ConfirmationDialog(
+                                title = dialogState.title,
+                                message = dialogState.message,
+                                onConfirm = {
+                                    dialogState.onConfirmAction()
+                                },
+                                onCancel = {
+                                    dialogState.onCancelAction?.invoke() ?: viewModel.handleEvent(AppEvent.DismissDialog)
+                                }
+                            )
+                        }
+                        is DialogState.Progress -> {
+                            ProgressDialog(
+                                title = dialogState.title,
+                                message = dialogState.message,
+                                progress = dialogState.progress
+                            )
+                        }
+                        is DialogState.Configuration -> {
+                            ConfigDialog(
+                                config = dialogState.config,
+                                onSave = dialogState.onSave,
+                                onCancel = dialogState.onCancel,
+                                onCompactModeChange = { },
+                                onViewLogs = dialogState.onViewLogs
+                            )
+                        }
+                        is DialogState.Logs -> {
+                            LogsDialog(
+                                logs = dialogState.logs,
+                                onClear = dialogState.onClear,
+                                onClose = dialogState.onClose
+                            )
+                        }
+                    }
+                }
+            }
+            is AppState.Error -> {
+                ErrorScreen(
+                    message = currentState.message,
+                    onRetry = { viewModel.handleEvent(AppEvent.RefreshApps) },
+                    modifier = Modifier.padding(paddingValues)
+                )
+                
+                // Handle dialogs in error state too
+                currentState.dialogState?.let { dialogState ->
+                    when (dialogState) {
+                        is DialogState.Confirmation -> {
+                            ConfirmationDialog(
+                                title = dialogState.title,
+                                message = dialogState.message,
+                                onConfirm = {
+                                    dialogState.onConfirmAction()
+                                },
+                                onCancel = {
+                                    dialogState.onCancelAction?.invoke() ?: viewModel.handleEvent(AppEvent.DismissDialog)
+                                }
+                            )
+                        }
+                        is DialogState.Progress -> {
+                            ProgressDialog(
+                                title = dialogState.title,
+                                message = dialogState.message,
+                                progress = dialogState.progress
+                            )
+                        }
+                        is DialogState.Configuration -> {
+                            ConfigDialog(
+                                config = dialogState.config,
+                                onSave = dialogState.onSave,
+                                onCancel = dialogState.onCancel,
+                                onCompactModeChange = { },
+                                onViewLogs = dialogState.onViewLogs
+                            )
+                        }
+                        is DialogState.Logs -> {
+                            LogsDialog(
+                                logs = dialogState.logs,
+                                onClear = dialogState.onClear,
+                                onClose = dialogState.onClose
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LogsDialog(
+    logs: List<AppLogEntry>,
+    onClear: () -> Unit,
+    onClose: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onClose,
+        title = { Text(text = stringResource(R.string.view_logs)) },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(380.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                if (logs.isEmpty()) {
+                    Text(
+                        text = stringResource(R.string.no_logs_available),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                } else {
+                    logs.asReversed().forEach { log ->
+                        Text(
+                            text = "${log.timestamp} [${log.level}] ${log.message}",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onClose) {
+                Text(text = stringResource(R.string.close_button))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onClear) {
+                Text(text = stringResource(R.string.clear_logs))
+            }
+        }
+    )
+}
+
+/**
+ * Confirmation dialog component
+ */
+@Composable
+private fun ConfirmationDialog(
+    title: String,
+    message: String,
+    onConfirm: () -> Unit,
+    onCancel: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onCancel,
+        title = {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.headlineSmall
+            )
+        },
+        text = {
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodyMedium
+            )
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm
+            ) {
+                Text(stringResource(R.string.confirm))
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onCancel
+            ) {
+                Text(stringResource(R.string.cancel))
+            }
+        }
+    )
+}
+
+/**
+ * Progress dialog component
+ */
+@Composable
+private fun ProgressDialog(
+    title: String,
+    message: String,
+    progress: Float?
+) {
+    AlertDialog(
+        onDismissRequest = { /* Not dismissible */ },
+        title = {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.headlineSmall
+            )
+        },
+        text = {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                if (progress != null) {
+                    CircularProgressIndicator(
+                        progress = { progress }
+                    )
+                } else {
+                    CircularProgressIndicator()
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center
+                )
+            }
+        },
+        confirmButton = { /* No button for progress dialog */ }
+    )
+}
+
+/**
+ * Loading screen component
+ */
+@Composable
+private fun LoadingScreen(
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            CircularProgressIndicator()
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = stringResource(R.string.loading_apps_message),
+                style = MaterialTheme.typography.bodyLarge
+            )
+        }
+    }
+}
+
+/**
+ * Error screen component
+ */
+@Composable
+private fun ErrorScreen(
+    message: String,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = stringResource(R.string.error_prefix, message),
+                style = MaterialTheme.typography.bodyLarge,
+                textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.error
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Button(onClick = onRetry) {
+                Text(stringResource(R.string.retry))
+            }
+        }
+    }
+}
+
+/**
+ * App list screen component
+ */
+@Composable
+private fun AppListScreen(
+    apps: List<com.app.manager.domain.model.RevancedApp>,
+    searchQuery: String = "",
+    filterOption: AppFilterOption = AppFilterOption.ALL,
+    onSearchQueryChange: (String) -> Unit = {},
+    onClearSearch: () -> Unit = {},
+    onFilterChange: (AppFilterOption) -> Unit = {},
+    onEvent: (AppEvent) -> Unit,
+    isCompactMode: Boolean = false,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+
+    LazyColumn(
+        modifier = modifier.fillMaxSize()
+    ) {
+        item {
+            Text(
+                text = stringResource(R.string.revanced_manager_by),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                textAlign = TextAlign.Center
+            )
+        }
+        
+        // Search + filter bar
+        item {
+            SearchAndFilterBar(
+                query = searchQuery,
+                filterOption = filterOption,
+                onQueryChange = onSearchQueryChange,
+                onClear = onClearSearch,
+                onFilterChange = onFilterChange,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            )
+        }
+
+        // App cards
+        // Empty state when no apps match search
+        if (apps.isEmpty()) {
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = when {
+                            searchQuery.isNotBlank() -> stringResource(R.string.no_apps_found, searchQuery)
+                            filterOption != AppFilterOption.ALL -> stringResource(R.string.no_apps_for_filter)
+                            else -> stringResource(R.string.no_apps_available)
+                        },
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        }
+
+        // App cards
+        itemsIndexed(
+            items = apps,
+            key = { index, app -> "${app.packageName}#${index}" }
+        ) { _, app ->
+            AppCard(
+                app = app,
+                onDownloadClick = {
+                    onEvent(AppEvent.DownloadApp(app.packageName, app.downloadUrl))
+                },
+                onInstallClick = {
+                    // This will be called internally after download completes
+                },
+                onUninstallClick = {
+                    onEvent(AppEvent.UninstallApp(app.packageName))
+                },
+                onReinstallClick = {
+                    onEvent(AppEvent.ShowReinstallConfirmation(app.packageName))
+                },
+                onOpenClick = {
+                    onEvent(AppEvent.OpenApp(app.packageName))
+                },
+                isCompactMode = isCompactMode
+            )
+        }
+
+        // Support buttons
+        item {
+            SupportButtons(
+                onKofiClick = { launchUrl(context, "https://github.com/TanNhatCMS/app-manager-plus") },
+                onWebsiteClick = { launchUrl(context, "https://github.com/TanNhatCMS/app-manager-plus") },
+                onGithubClick = { launchUrl(context, "https://github.com/TanNhatCMS/app-manager-plus") }
+            )
+        }
+
+        // Bottom spacing
+        item {
+            Spacer(modifier = Modifier.height(80.dp))
+        }
+    }
+}
+
+/**
+ * Support buttons component
+ */
+@Composable
+private fun SupportButtons(
+    onKofiClick: () -> Unit,
+    onWebsiteClick: () -> Unit,
+    onGithubClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        // Ko-fi support button
+        // Button(
+        //     onClick = onKofiClick,
+        //     colors = ButtonDefaults.buttonColors(
+        //         containerColor = Color(0xFF4285F4),
+        //         contentColor = Color.White
+        //     ),
+        //     modifier = Modifier.fillMaxWidth(0.8f),
+        //     shape = MaterialTheme.shapes.medium
+        // ) {
+        //     Icon(
+        //         imageVector = Icons.Filled.Coffee,
+        //         contentDescription = "Support on Ko-fi",
+        //         modifier = Modifier.size(20.dp),
+        //         tint = Color.White
+        //     )
+        //     Spacer(modifier = Modifier.width(8.dp))
+        //     Text(
+        //         text = "Support me on Ko-fi",
+        //         style = MaterialTheme.typography.labelLarge,
+        //         color = Color.White
+        //     )
+        // }
+
+        // Website button
+        Button(
+            onClick = onWebsiteClick,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
+            ),
+            modifier = Modifier.fillMaxWidth(0.8f),
+            shape = MaterialTheme.shapes.medium
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Language,
+                contentDescription = "Visit website",
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "Project page",
+                style = MaterialTheme.typography.labelLarge
+            )
+        }
+
+        // Github button
+        Button(
+            onClick = onGithubClick,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
+            ),
+            modifier = Modifier.fillMaxWidth(0.8f),
+            shape = MaterialTheme.shapes.medium
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Code,
+                contentDescription = "Github",
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "Source code",
+                style = MaterialTheme.typography.labelLarge
+            )
+        }
+    }
+}
+
+/**
+ * Helper function to launch URLs
+ */
+private fun launchUrl(context: Context, url: String) {
+    try {
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            data = Uri.parse(url)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        context.startActivity(intent)
+    } catch (e: Exception) {
+        Toast.makeText(context, "Failed to open URL", Toast.LENGTH_SHORT).show()
+    }
+}
+
+/**
+ * Combined search + filter bar with animated filter chips.
+ */
+@Composable
+private fun SearchAndFilterBar(
+    query: String,
+    filterOption: AppFilterOption,
+    onQueryChange: (String) -> Unit,
+    onClear: () -> Unit,
+    onFilterChange: (AppFilterOption) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var filterExpanded by remember { mutableStateOf(filterOption != AppFilterOption.ALL) }
+    val isFilterActive = filterOption != AppFilterOption.ALL
+
+    // Auto-show chips when a filter becomes active from outside
+    LaunchedEffect(isFilterActive) {
+        if (isFilterActive) filterExpanded = true
+    }
+
+    // Chips are visible when expanded OR when a filter is active
+    val showChips = filterExpanded || isFilterActive
+
+    Column(modifier = modifier) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            // Search field
+            androidx.compose.material3.TextField(
+                value = query,
+                onValueChange = onQueryChange,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(48.dp),
+                placeholder = {
+                    Text(
+                        text = stringResource(R.string.search_apps),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Filled.Search,
+                        contentDescription = "Search",
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                },
+                trailingIcon = {
+                    if (query.isNotEmpty()) {
+                        androidx.compose.material3.IconButton(
+                            onClick = onClear,
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Clear,
+                                contentDescription = "Clear search",
+                                modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                },
+                singleLine = true,
+                shape = MaterialTheme.shapes.medium,
+                colors = androidx.compose.material3.TextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent
+                ),
+                textStyle = MaterialTheme.typography.bodySmall
+            )
+
+            // Filter toggle button with active-state badge
+            BadgedBox(
+                badge = {
+                    if (isFilterActive) {
+                        Badge(containerColor = MaterialTheme.colorScheme.primary)
+                    }
+                }
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(MaterialTheme.shapes.medium)
+                        .background(
+                            if (isFilterActive) MaterialTheme.colorScheme.primaryContainer
+                            else MaterialTheme.colorScheme.surfaceVariant
+                        )
+                        .clickable { filterExpanded = !filterExpanded },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.FilterList,
+                        contentDescription = stringResource(R.string.filter_label),
+                        modifier = Modifier.size(20.dp),
+                        tint = if (isFilterActive) MaterialTheme.colorScheme.onPrimaryContainer
+                               else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+
+        // Animated filter chips row
+        AnimatedVisibility(
+            visible = showChips,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut()
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp)
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FilterChip(
+                    selected = filterOption == AppFilterOption.ALL,
+                    onClick = { onFilterChange(AppFilterOption.ALL) },
+                    label = {
+                        Text(
+                            text = stringResource(R.string.filter_all),
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    }
+                )
+                FilterChip(
+                    selected = filterOption == AppFilterOption.INSTALLED,
+                    onClick = { onFilterChange(AppFilterOption.INSTALLED) },
+                    label = {
+                        Text(
+                            text = stringResource(R.string.filter_installed),
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    }
+                )
+                FilterChip(
+                    selected = filterOption == AppFilterOption.NOT_INSTALLED,
+                    onClick = { onFilterChange(AppFilterOption.NOT_INSTALLED) },
+                    label = {
+                        Text(
+                            text = stringResource(R.string.filter_not_installed),
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    }
+                )
+                FilterChip(
+                    selected = filterOption == AppFilterOption.UPDATES_AVAILABLE,
+                    onClick = { onFilterChange(AppFilterOption.UPDATES_AVAILABLE) },
+                    label = {
+                        Text(
+                            text = stringResource(R.string.filter_updates),
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    }
+                )
+            }
+        }
+    }
+}
+
+

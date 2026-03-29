@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">App Manager Plus</string>
+    <string name="app_name">App Manager By TanNhatCMS</string>
     
     <!-- Settings Dialog -->
     <string name="settings">Settings</string>
@@ -21,7 +21,7 @@
     <string name="retry">Retry</string>
     <string name="loading_apps_message">Loading apps...</string>
     <string name="error_prefix">Error: %1$s</string>
-    <string name="revanced_manager_by">ReVanced Manager by vanced.to</string>
+    <string name="revanced_manager_by">App Manager Plus</string>
     <string name="search_apps">Search apps…</string>
     <string name="no_apps_found">No apps found for \"%1$s\"</string>
     <string name="no_apps_available">No apps available</string>
@@ -101,6 +101,9 @@
     <string name="install_all_button">Install All (%1$d)</string>
     <string name="install_button">Install</string>
     <string name="close_button">Close</string>
+    <string name="view_logs">View logs</string>
+    <string name="clear_logs">Clear logs</string>
+    <string name="no_logs_available">No logs available</string>
     <string name="installing_multiple_apps">Installing %1$d apps...</string>
     <string name="installing_single_app">Installing %1$s...</string>
     <string name="downloads_in_progress">Downloads in progress</string>

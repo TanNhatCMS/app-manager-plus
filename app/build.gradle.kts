@@ -163,11 +163,11 @@ tasks.register("revancedRelease") {
         // Define source and destination files
         val sourceFile = layout.buildDirectory.file("outputs/apk/release/app-release.apk")
         val destinationDir = project.rootDir.resolve("apk")
-        val destinationFile = destinationDir.resolve("vanced.to_revanced_manager_plus_v${versionName}.apk")
+        val destinationFile = destinationDir.resolve("app_manager_plus_v${versionName}.apk")
 
         println("[SOURCE] Source APK: ${sourceFile.get().asFile.absolutePath}")
         println("[TARGET] Destination directory: ${destinationDir.absolutePath}")
-        println("[FILE] Final APK name: vanced.to_revanced_manager_plus_v${versionName}.apk")
+        println("[FILE] Final APK name: app_manager_plus_v${versionName}.apk")
 
         // Create destination directory if it doesn't exist
         if (!destinationDir.exists()) {
@@ -219,11 +219,11 @@ tasks.register("revancedDebug") {
         // Define source and destination files
         val sourceFile = layout.buildDirectory.file("outputs/apk/debug/app-debug.apk")
         val destinationDir = project.rootDir.resolve("apk")
-        val destinationFile = destinationDir.resolve("vanced.to_revanced_manager_plus_debug_v${versionName}.apk")
+        val destinationFile = destinationDir.resolve("app_revanced_manager_plus_debug_v${versionName}.apk")
 
         println("[SOURCE] Source APK: ${sourceFile.get().asFile.absolutePath}")
         println("[TARGET] Destination directory: ${destinationDir.absolutePath}")
-        println("[FILE] Final APK name: vanced.to_revanced_manager_plus_debug_v${versionName}.apk")
+        println("[FILE] Final APK name: app_revanced_manager_plus_debug_v${versionName}.apk")
 
         // Create destination directory if it doesn't exist
         if (!destinationDir.exists()) {
