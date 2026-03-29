@@ -40,11 +40,11 @@ plugins {
 }
 
 android {
-    namespace = "com.revanced.net.revancedmanager"
+    namespace = "com.app.manager"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.revanced.net.revancedmanager"
+        applicationId = "com.app.manager"
         minSdk = 24
         targetSdk = 34
 
@@ -59,11 +59,13 @@ android {
         }
     }
     signingConfigs {
-        create("release") {
-            storeFile = file(keystoreProperties["storeFile"] as String)
-            storePassword = keystoreProperties["storePassword"] as String
-            keyAlias = keystoreProperties["keyAlias"] as String
-            keyPassword = keystoreProperties["keyPassword"] as String
+        if (keystorePropertiesFile.exists()) {
+            create("release") {
+                storeFile = file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+            }
         }
     }
     buildTypes {
@@ -77,7 +79,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("release")
+            signingConfigs.findByName("release")?.let { signingConfig = it }
         }
     }
     compileOptions {

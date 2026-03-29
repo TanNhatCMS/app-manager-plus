@@ -1,0 +1,85 @@
+name: Build APK
+permissions: {}
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_release:
+        description: "Build signed release APK"
+        required: false
+        default: false
+        type: boolean
+  # push:
+  #   branches:
+  #     - main
+
+jobs:
+  build-debug:
+    name: Build Debug APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build debug APK
+        run: ./gradlew --no-daemon clean :app:assembleDebug
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: vanced-manager-plus-debug
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+  build-release:
+    name: Build Release APK
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_release && secrets.KEYSTORE_B64 != '' && secrets.KEYSTORE_PASSWORD != '' && secrets.KEYSTORE_ENTRY_ALIAS != '' && secrets.KEYSTORE_ENTRY_PASSWORD != '' }}
+
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Prepare signing files
+        shell: bash
+        run: |
+          echo "${{ secrets.KEYSTORE_B64 }}" | base64 --decode > app/release.keystore
+          cat <<EOF > keystore.properties
+          storeFile=release.keystore
+          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
+          keyAlias=${{ secrets.KEYSTORE_ENTRY_ALIAS }}
+          keyPassword=${{ secrets.KEYSTORE_ENTRY_PASSWORD }}
+          EOF
+
+      - name: Build release APK
+        run: ./gradlew --no-daemon clean :app:assembleRelease
+
+      - name: Upload release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: vanced-manager-plus-release
+          path: app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error

@@ -19,5 +19,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "ReVanced Manager Plus"
+rootProject.name = "App Manager Plus"
 include(":app")

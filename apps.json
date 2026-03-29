@@ -1,0 +1,34 @@
+{
+  "apps": [
+    {
+      "packageName": "app.revanced.android.gms",
+      "title": "MicroG RE",
+      "latestVersion": "6.1.1",
+      "description": "MicroG Services (MorpheApp build)",
+      "iconUrl": "https://avatars.githubusercontent.com/u/246280111?s=48&v=4",
+      "downloadUrl": "https://github.com/MorpheApp/MicroG-RE/releases/download/6.1.1/microg-6.1.1.apk",
+      "requiresMicroG": false,
+      "index": 1
+    },
+     {
+      "packageName": "app.revanced.android.gms",
+      "title": "MicroG",
+      "latestVersion": "v0.3.13.2.250932",
+      "description": "MicroG Services for all other devices (ReVanced build)",
+      "iconUrl": "https://avatars.githubusercontent.com/u/101597779?s=48&v=4",
+      "downloadUrl": "https://github.com/ReVanced/GmsCore/releases/download/v0.3.13.2.250932/app.revanced.android.gms-250932004-signed.apk",
+      "requiresMicroG": false,
+      "index": 2
+    },
+     {
+      "packageName": "app.revanced.android.gms",
+      "title": "MicroG",
+      "latestVersion": "v0.3.13.2.250932",
+      "description": "MicroG Services for Huawei and Xiaomi devices (ReVanced build)",
+      "iconUrl": "https://avatars.githubusercontent.com/u/101597779?s=48&v=4",
+      "downloadUrl": "https://github.com/ReVanced/GmsCore/releases/download/v0.3.13.2.250932/app.revanced.android.gms-250932004-hw-signed.apk",
+      "requiresMicroG": false,
+      "index": 3
+    }
+  ]
+}
