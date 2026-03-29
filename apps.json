@@ -3,7 +3,8 @@
     {
       "packageName": "com.app.manager",
       "title": "App Manager Plus",
-      "latestVersion": "1",
+      "versionCode": 1,
+      "versionName": "1.0.0",
       "description": "App Manager Plus v1.0.0 by TanNhatCMS(KietNT)",
       "iconUrl": "https://avatars.githubusercontent.com/u/101597779?s=48&v=4",
       "downloadUrl": "https://github.com/TanNhatCMS/app-manager-plus/releases/download/1.0.0/App_Manager_Plus-v1.0.0.apk",
@@ -13,7 +14,8 @@
     {
       "packageName": "app.morphe.android.youtube",
       "title": "Youtube Morphe Thử nghiệm",
-      "latestVersion": "2147483647",
+      "versionCode": 2147483647,
+      "versionName": "21.13.163",
       "description": "Youtube Morphe v21.13.163 (Morphe Patches v1.23.0-dev.1)",
       "iconUrl": "https://avatars.githubusercontent.com/u/246280111?s=48&v=4",
       "downloadUrl": "https://github.com/TanNhatCMS/app-manager-plus/releases/download/1.0.0/YouTube_Morphe-v21.13.163-v1.23.0-dev.1.apk",
@@ -23,7 +25,8 @@
     {
       "packageName": "app.morphe.android.youtube",
       "title": "Youtube Morphe Ổn định",
-      "latestVersion": "2147483647",
+      "versionCode": 2147483647,
+      "versionName": "20.45.36",
       "description": "Youtube Morphe v20.45.36 (Morphe Patches v1.22.0)",
       "iconUrl": "https://avatars.githubusercontent.com/u/246280111?s=48&v=4",
       "downloadUrl": "https://github.com/TanNhatCMS/app-manager-plus/releases/download/1.0.0/YouTube_Morphe-v20.45.36-v1.22.0.apk",
@@ -33,7 +36,8 @@
     {
       "packageName": "app.revanced.android.youtube",
       "title": "Youtube Revanded Ổn định",
-      "latestVersion": "1557278144",
+      "versionCode": 1557278144,
+      "versionName": "20.40.45",
       "description": "Youtube Revanded v20.40.45 (ReVanced Patches v6.1.0)",
       "iconUrl": "https://avatars.githubusercontent.com/u/101597779?s=48&v=4",
       "downloadUrl": "https://github.com/TanNhatCMS/app-manager-plus/releases/download/1.0.0/YouTube_ReVanced-v20.40.45-v6.1.0.apk",
@@ -43,7 +47,8 @@
     {
       "packageName": "app.revanced.android.gms",
       "title": "MicroG RE",
-      "latestVersion": "255034001",
+      "versionCode": 255034001,
+      "versionName": "6.1.1",
       "description": "MicroG Services v6.1.1 (MorpheApp build)",
       "iconUrl": "https://avatars.githubusercontent.com/u/246280111?s=48&v=4",
       "downloadUrl": "https://github.com/MorpheApp/MicroG-RE/releases/download/6.1.1/microg-6.1.1.apk",
@@ -53,7 +58,8 @@
     {
       "packageName": "app.revanced.android.gms",
       "title": "MicroG",
-      "latestVersion": "250932004",
+      "versionCode": 250932004,
+      "versionName": "0.3.13.2.250932",
       "description": "MicroG Services v0.3.13.2.250932 for all other devices (ReVanced build)",
       "iconUrl": "https://avatars.githubusercontent.com/u/101597779?s=48&v=4",
       "downloadUrl": "https://github.com/ReVanced/GmsCore/releases/download/v0.3.13.2.250932/app.revanced.android.gms-250932004-signed.apk",
@@ -63,7 +69,8 @@
     {
       "packageName": "app.revanced.android.gms",
       "title": "MicroG",
-      "latestVersion": "250932004",
+      "versionCode": 250932004,
+      "versionName": "0.3.13.2.250932",
       "description": "MicroG Services v0.3.13.2.250932 for Huawei and Xiaomi devices (ReVanced build)",
       "iconUrl": "https://avatars.githubusercontent.com/u/101597779?s=48&v=4",
       "downloadUrl": "https://github.com/ReVanced/GmsCore/releases/download/v0.3.13.2.250932/app.revanced.android.gms-250932004-hw-signed.apk",

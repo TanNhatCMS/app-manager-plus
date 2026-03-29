@@ -20,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
@@ -152,7 +153,7 @@ fun AppCard(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                             )
                             Text(
-                                text = "v${app.latestVersion}",
+                                text = "v${app.latestVersionName}",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.secondary,
                                 maxLines = 1,
@@ -196,16 +197,6 @@ fun AppCard(
                                 indication = LocalIndication.current
                             ) { isExpanded = false }
                     )
-
-                    // MicroG requirement indicator
-                    if (app.requiresMicroG) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "⚠️ Requires MicroG",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Color(0xFFFFA726)
-                        )
-                    }
 
                     // Show less button
                     Row(
@@ -265,9 +256,28 @@ fun AppCard(
                 }
             }
             
-            
             Spacer(modifier = Modifier.height(6.dp))
-            
+
+            if (app.requiresMicroG) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Warning, // Bạn có thể cần thêm icon Warning nếu chưa có
+                        contentDescription = "MicroG Required",
+                        modifier = Modifier.size(16.dp),
+                        tint = Color(0xFFFFA726)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "⚠️ Requires MicroG", // Hoặc dùng stringResource
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color(0xFFFFA726)
+                    )
+                }
+                Spacer(modifier = Modifier.height(4.dp)) // Thêm khoảng cách nhỏ
+            }
             // Download progress indicator
             if (app.status == AppStatus.DOWNLOADING && app.downloadProgress > 0) {
                 LinearProgressIndicator(

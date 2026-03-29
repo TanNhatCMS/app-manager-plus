@@ -6,13 +6,15 @@ package com.app.manager.domain.model
 data class RevancedApp(
     val packageName: String,
     val title: String,
-    val latestVersion: String,
-    val currentVersion: String?,
+    // Thay thế latestVersion bằng versionCode và thêm versionName
+    val latestVersionCode: Long, // Sử dụng Long cho VersionCode lớn
+    val latestVersionName: String, // Tên phiên bản (e.g., "1.0.0", "21.13.163")
+    val currentVersion: String?, // Giữ nguyên currentVersion (tên phiên bản cài đặt)
     val description: String,
     val iconUrl: String,
     val downloadUrl: String,
     val requiresMicroG: Boolean,
-    val index: Int,
+    val index: Int, // Giữ lại index nếu cần sắp xếp (hoặc xóa nếu bạn muốn xóa nó)
     val status: AppStatus,
     val downloadProgress: Float = 0f
 )

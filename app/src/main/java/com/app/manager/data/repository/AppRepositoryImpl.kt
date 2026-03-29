@@ -87,7 +87,7 @@ class AppRepositoryImpl @Inject constructor(
         val oldMap = oldApps.associateBy { it.packageName }
         return newApps.filter { newApp ->
             val oldApp = oldMap[newApp.packageName] ?: return@filter true
-            oldApp.latestVersion != newApp.latestVersion ||
+            oldApp.latestVersionCode != newApp.latestVersionCode ||
                 oldApp.downloadUrl != newApp.downloadUrl ||
                 oldApp.iconUrl != newApp.iconUrl
         }
@@ -166,7 +166,8 @@ class AppRepositoryImpl @Inject constructor(
 
             val packageName = obj.string("packageName", "package_name", "package", "id") ?: return@mapIndexedNotNull null
             val title = obj.string("title", "name") ?: packageName
-            val latestVersion = obj.string("latestVersion", "latest_version", "version") ?: "0"
+            val versionCode = obj.long("versionCode", "latestVersion", "code") ?: return@mapIndexedNotNull null
+            val versionName = obj.string("versionName", "version") ?: versionCode.toString() 
             val description = obj.string("description", "desc") ?: ""
             val iconUrl = obj.string("iconUrl", "icon_url", "icon")?.withBaseUrl() ?: ""
             val downloadUrl = obj.string("downloadUrl", "download_url", "url", "apk", "link")?.withBaseUrl()
@@ -178,7 +179,8 @@ class AppRepositoryImpl @Inject constructor(
             RevancedApp(
                 packageName = packageName,
                 title = title,
-                latestVersion = latestVersion,
+                latestVersionCode = versionCode,
+                latestVersionName = versionName,
                 currentVersion = currentVersion,
                 description = description,
                 iconUrl = iconUrl,
@@ -195,6 +197,15 @@ class AppRepositoryImpl @Inject constructor(
             val value = this[key] as? JsonPrimitive ?: continue
             val content = value.contentOrNull?.trim()
             if (!content.isNullOrEmpty()) return content
+        }
+        return null
+    }
+
+    private fun JsonObject.long(vararg keys: String): Long? {
+        for (key in keys) {
+            val value = this[key] as? JsonPrimitive ?: continue
+            val longValue = value.contentOrNull?.trim()?.toLongOrNull()
+            if (longValue != null) return longValue
         }
         return null
     }

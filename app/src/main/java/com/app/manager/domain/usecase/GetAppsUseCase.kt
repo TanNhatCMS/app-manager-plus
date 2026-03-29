@@ -54,16 +54,16 @@ class GetAppsUseCase @Inject constructor(
      * @param latestVersion Latest available version
      * @return Positive if installedVersion > latestVersion, negative if less, zero if equal
      */
-    private fun compareVersions(installedVersion: String, latestVersion: String): Int {
-        if (installedVersion.isEmpty() || latestVersion.isEmpty()) {
+    private fun compareVersions(version1: String, version2: String): Int {
+        if (version1.isEmpty() || version2.isEmpty()) {
             return 0
         }
         
         return try {
-            val installedParts = installedVersion.split(".").map { part ->
+            val installedParts = version1.split(".").map { part ->
                 part.takeWhile { it.isDigit() }.ifEmpty { "0" }
             }
-            val latestParts = latestVersion.split(".").map { part ->
+            val latestParts = version2.split(".").map { part ->
                 part.takeWhile { it.isDigit() }.ifEmpty { "0" }
             }
             
@@ -90,10 +90,15 @@ class GetAppsUseCase @Inject constructor(
      * @param app The RevancedApp to check
      * @return AppStatus representing the current status
      */
-    private fun determineAppStatus(app: RevancedApp): AppStatus {
+     private fun determineAppStatus(app: RevancedApp): AppStatus {
+        val installedVersionCode = app.currentVersion?.toLongOrNull()
+
         return when {
             app.currentVersion == null -> AppStatus.NOT_INSTALLED
-            compareVersions(app.currentVersion, app.latestVersion) >= 0 -> AppStatus.UP_TO_DATE
+            // Ưu tiên so sánh VersionCode (Long) nếu có thể
+            installedVersionCode != null && installedVersionCode >= app.latestVersionCode -> AppStatus.UP_TO_DATE
+            // Fallback: So sánh VersionName (String) nếu không thể lấy VersionCode
+            installedVersionCode == null && compareVersions(app.currentVersion, app.latestVersionName) >= 0 -> AppStatus.UP_TO_DATE
             else -> AppStatus.UPDATE_AVAILABLE
         }
     }

@@ -1005,7 +1005,7 @@ class AppBloc @Inject constructor(
                 val newStatus = if (isInstalled) {
                     val installedVersion = appManager.getInstalledVersion(packageName)
                     if (installedVersion != null) {
-                        when (compareVersions(installedVersion, app.latestVersion)) {
+                        when (compareVersions(installedVersion, app.latestVersionName)) {
                             0 -> AppStatus.UP_TO_DATE
                             1 -> AppStatus.UP_TO_DATE
                             else -> AppStatus.UPDATE_AVAILABLE
@@ -1060,7 +1060,7 @@ class AppBloc @Inject constructor(
         if (currentState is AppState.Success) {
             val app = currentState.apps.find { it.packageName == packageName }
             app?.let {
-                val newStatus = when (compareVersions(installedVersion, app.latestVersion)) {
+                val newStatus = when (compareVersions(installedVersion, app.latestVersionName)) {
                     0 -> AppStatus.UP_TO_DATE  // Same version as latest
                     1 -> AppStatus.UP_TO_DATE  // Installed version is newer than latest
                     else -> AppStatus.UPDATE_AVAILABLE  // Still needs update (rare case)
@@ -1157,7 +1157,7 @@ class AppBloc @Inject constructor(
                     val newStatus = when {
                         !isInstalled -> AppStatus.NOT_INSTALLED
                         installedVersion != null -> {
-                            when (compareVersions(installedVersion, appToUpdate.latestVersion)) {
+                            when (compareVersions(installedVersion, appToUpdate.latestVersionName)) {
                                 0 -> AppStatus.UP_TO_DATE  // Same version
                                 1 -> AppStatus.UP_TO_DATE  // Installed version is newer
                                 else -> AppStatus.UPDATE_AVAILABLE  // Latest version is newer
@@ -1237,7 +1237,7 @@ class AppBloc @Inject constructor(
                 val newStatus = if (isInstalled) {
                     val installedVersion = appManager.getInstalledVersion(packageName)
                     if (installedVersion != null) {
-                        when (compareVersions(installedVersion, app.latestVersion)) {
+                        when (compareVersions(installedVersion, app.latestVersionName)) {
                             0 -> AppStatus.UP_TO_DATE
                             1 -> AppStatus.UP_TO_DATE
                             else -> AppStatus.UPDATE_AVAILABLE
@@ -1793,7 +1793,7 @@ class AppBloc @Inject constructor(
         if (!appManager.isAppInstalled(packageName)) return AppStatus.NOT_INSTALLED
         val installedVersion = appManager.getInstalledVersion(packageName) ?: return AppStatus.NOT_INSTALLED
         val latestVersion = (_state.value as? AppState.Success)
-            ?.apps?.find { it.packageName == packageName }?.latestVersion ?: return AppStatus.UP_TO_DATE
+            ?.apps?.find { it.packageName == packageName }?.latestVersionName ?: return AppStatus.UP_TO_DATE
         return when (compareVersions(installedVersion, latestVersion)) {
             0, 1 -> AppStatus.UP_TO_DATE
             else -> AppStatus.UPDATE_AVAILABLE
