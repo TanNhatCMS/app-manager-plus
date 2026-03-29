@@ -1,5 +1,7 @@
 package com.app.manager.presentation.ui.screen
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -204,6 +206,11 @@ fun MainScreen(
                             LogsDialog(
                                 logs = dialogState.logs,
                                 onClear = dialogState.onClear,
+                                onCopy = { copied ->
+                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                    clipboard.setPrimaryClip(ClipData.newPlainText("app-logs", copied))
+                                    Toast.makeText(context, context.getString(R.string.logs_copied), Toast.LENGTH_SHORT).show()
+                                },
                                 onClose = dialogState.onClose
                             )
                         }
@@ -252,6 +259,11 @@ fun MainScreen(
                             LogsDialog(
                                 logs = dialogState.logs,
                                 onClear = dialogState.onClear,
+                                onCopy = { copied ->
+                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                    clipboard.setPrimaryClip(ClipData.newPlainText("app-logs", copied))
+                                    Toast.makeText(context, context.getString(R.string.logs_copied), Toast.LENGTH_SHORT).show()
+                                },
                                 onClose = dialogState.onClose
                             )
                         }
@@ -266,8 +278,15 @@ fun MainScreen(
 private fun LogsDialog(
     logs: List<AppLogEntry>,
     onClear: () -> Unit,
+    onCopy: (String) -> Unit,
     onClose: () -> Unit
 ) {
+    val copiedPayload = if (logs.isEmpty()) {
+        ""
+    } else {
+        logs.joinToString(separator = "\n") { "${it.timestamp} [${it.level}] ${it.message}" }
+    }
+
     AlertDialog(
         onDismissRequest = onClose,
         title = { Text(text = stringResource(R.string.view_logs)) },
@@ -300,8 +319,13 @@ private fun LogsDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onClear) {
-                Text(text = stringResource(R.string.clear_logs))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = { onCopy(copiedPayload) }, enabled = copiedPayload.isNotEmpty()) {
+                    Text(text = stringResource(R.string.copy_logs))
+                }
+                TextButton(onClick = onClear) {
+                    Text(text = stringResource(R.string.clear_logs))
+                }
             }
         }
     )

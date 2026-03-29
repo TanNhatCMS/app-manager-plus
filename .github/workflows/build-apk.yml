@@ -70,9 +70,18 @@ jobs:
           keyPassword: ${{ secrets.KEYSTORE_ENTRY_PASSWORD }}
           buildToolsVersion: 36.0.0
 
+      - name: Normalize APK filename
+        id: apk_name
+        shell: bash
+        run: |
+          signed_file="${{ steps.sign_app.outputs.signedFile }}"
+          normalized_path="app/build/outputs/apk/release/app-manager-plus-release.apk"
+          cp "$signed_file" "$normalized_path"
+          echo "normalized=$normalized_path" >> "$GITHUB_OUTPUT"
+
       - name: Upload release APK
         uses: actions/upload-artifact@v7
         with:
           name: app-manager-plus-release
           archive: false
-          path: ${{ steps.sign_app.outputs.signedFile }}
+          path: ${{ steps.apk_name.outputs.normalized }}

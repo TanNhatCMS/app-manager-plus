@@ -38,7 +38,7 @@ object ProviderModule {
             RevancedDatabase::class.java,
             RevancedDatabase.DATABASE_NAME
         )
-            .fallbackToDestructiveMigration()
+            .fallbackToDestructiveMigration(dropAllTables = true)
             .build()
     }
     

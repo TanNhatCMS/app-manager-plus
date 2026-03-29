@@ -19,7 +19,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -44,6 +43,8 @@ fun ConfigDialog(
     var selectedThemeMode by remember(config) { mutableStateOf(config.themeMode) }
     var selectedLanguage by remember(config) { mutableStateOf(config.language) }
     var compactModeEnabled by remember(config) { mutableStateOf(config.compactMode) }
+    var debugLoggingEnabled by remember(config) { mutableStateOf(config.debugLogging) }
+    var downloadPath by remember(config) { mutableStateOf(config.downloadPath) }
     var showThemeSelector by remember { mutableStateOf(false) }
     var showLanguageSelector by remember { mutableStateOf(false) }
 
@@ -383,6 +384,70 @@ fun ConfigDialog(
                     }
                 }
 
+                // Debug Logging Section
+                Column {
+                    Text(
+                        text = stringResource(R.string.debug_logging),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(
+                                2.dp,
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
+                                RoundedCornerShape(12.dp)
+                            ),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = stringResource(R.string.debug_logging),
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium
+                            )
+
+                            Switch(
+                                checked = debugLoggingEnabled,
+                                onCheckedChange = {
+                                    debugLoggingEnabled = it
+                                }
+                            )
+                        }
+                    }
+                }
+
+                // Download path section
+                Column {
+                    Text(
+                        text = stringResource(R.string.download_path),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    OutlinedTextField(
+                        value = downloadPath,
+                        onValueChange = { downloadPath = it },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = {
+                            Text(stringResource(R.string.download_path_hint))
+                        }
+                    )
+                }
+
                 TextButton(
                     onClick = onViewLogs,
                     modifier = Modifier.fillMaxWidth()
@@ -394,7 +459,15 @@ fun ConfigDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    onSave(AppConfig(selectedThemeMode, selectedLanguage, compactModeEnabled))
+                    onSave(
+                        AppConfig(
+                            themeMode = selectedThemeMode,
+                            language = selectedLanguage,
+                            compactMode = compactModeEnabled,
+                            debugLogging = debugLoggingEnabled,
+                            downloadPath = downloadPath.trim()
+                        )
+                    )
                 }
             ) {
                 Text(stringResource(R.string.apply))

@@ -5,8 +5,10 @@ package com.app.manager.domain.model
  */
 data class AppConfig(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
-    val language: Language = Language.ENGLISH,
-    val compactMode: Boolean = true // Default to compact mode enabled
+    val language: Language = Language.VIETNAMESE,
+    val compactMode: Boolean = true, // Default to compact mode enabled
+    val debugLogging: Boolean = true,
+    val downloadPath: String = ""
 )
 
 /**

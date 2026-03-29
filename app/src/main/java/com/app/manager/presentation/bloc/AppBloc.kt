@@ -81,6 +81,8 @@ class AppBloc @Inject constructor(
     val toastMessage: StateFlow<String?> = _toastMessage.asStateFlow()
     private val actionLogs = mutableListOf<AppLogEntry>()
     private val logTimestampFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+    @Volatile
+    private var isDebugLoggingEnabled = true
 
     // Track concurrent download/install states
     private val activeDownloads = mutableMapOf<String, kotlinx.coroutines.Job>()
@@ -602,6 +604,7 @@ class AppBloc @Inject constructor(
      */
     private fun loadAppsFromCacheFirst() {
         Log.i(TAG, "Loading apps from cache first for fast UI")
+        addActionLog("INFO", "LoadAppsFromCacheFirst started")
         viewModelScope.launch {
             useCases.appRepository.getAppsFromCacheImmediately()
                 .onEach { result ->
@@ -614,11 +617,12 @@ class AppBloc @Inject constructor(
                         }
                         is Result.Success -> {
                             Log.i(TAG, "Cache loaded successfully: ${result.data.size} items")
+                            addActionLog("INFO", "Cache loaded: ${result.data.size} apps")
                             val config = try {
                                 preferencesManager.getAppConfig()
                             } catch (e: Exception) {
                                 Log.w(TAG, "Failed to load config, using fallback", e)
-                                AppConfig(ThemeMode.DARK, Language.ENGLISH)
+                                AppConfig(ThemeMode.DARK, Language.VIETNAMESE)
                             }
                             _state.value = AppState.Success(result.data, config = config)
                             
@@ -631,6 +635,7 @@ class AppBloc @Inject constructor(
                         }
                         is Result.Error -> {
                             Log.e(TAG, "Failed to load cached apps", result.exception)
+                            logException("Load cached apps failed", result.exception)
                             // If cache loading fails, fallback to normal loading
                             loadApps(forceRefresh = false)
                         }
@@ -645,6 +650,7 @@ class AppBloc @Inject constructor(
      */
     private fun backgroundRefreshApps() {
         Log.i(TAG, "Background refresh starting")
+        addActionLog("INFO", "Background refresh started")
         viewModelScope.launch {
             useCases.appRepository.backgroundRefreshApps()
                 .onEach { result ->
@@ -655,6 +661,7 @@ class AppBloc @Inject constructor(
                         }
                         is Result.Success -> {
                             Log.i(TAG, "Background refresh completed: ${result.data.size} items")
+                            addActionLog("INFO", "Background refresh completed: ${result.data.size} apps")
                             
                             val currentState = _state.value
                             if (currentState is AppState.Success) {
@@ -672,7 +679,7 @@ class AppBloc @Inject constructor(
                                         preferencesManager.getAppConfig()
                                     } catch (e: Exception) {
                                         Log.w(TAG, "Failed to load config, using fallback", e)
-                                        AppConfig(ThemeMode.DARK, Language.ENGLISH)
+                                        AppConfig(ThemeMode.DARK, Language.VIETNAMESE)
                                     }
                                     
                                     _state.value = AppState.Success(newApps, config = config)
@@ -690,6 +697,7 @@ class AppBloc @Inject constructor(
                         }
                         is Result.Error -> {
                             Log.w(TAG, "Background refresh failed, keeping current state", result.exception)
+                            logException("Background refresh failed", result.exception)
                             // Don't update UI on background refresh failure
                             // User will still see cached data
                         }
@@ -723,6 +731,7 @@ class AppBloc @Inject constructor(
      */
     private fun loadApps(forceRefresh: Boolean) {
         Log.i(TAG, "Loading apps, forceRefresh: $forceRefresh")
+        addActionLog("INFO", "LoadApps started (forceRefresh=$forceRefresh)")
         viewModelScope.launch {
             useCases.getAppsUseCase(forceRefresh)
                 .onEach { result ->
@@ -733,29 +742,44 @@ class AppBloc @Inject constructor(
                         }
                         is Result.Success -> {
                             Log.i(TAG, "Apps loaded successfully: ${result.data.size} items")
+                            addActionLog("INFO", "LoadApps success: ${result.data.size} apps")
                             // Ensure config is included when transitioning to Success state
                             val config = try {
                                 preferencesManager.getAppConfig()
                             } catch (e: Exception) {
                                 Log.w(TAG, "Failed to load config during app loading, using fallback", e)
-                                AppConfig(ThemeMode.DARK, Language.ENGLISH)
+                                AppConfig(ThemeMode.DARK, Language.VIETNAMESE)
                             }
                             _state.value = AppState.Success(result.data, config = config)
                         }
                         is Result.Error -> {
                             Log.e(TAG, "Failed to load apps", result.exception)
-                            // Ensure config is included even in Error state
+                            logException("Load apps failed", result.exception)
+                            // Keep main UI visible even when network/app source fails.
+                            // We show the error as toast and stay in Success state.
                             val config = try {
                                 preferencesManager.getAppConfig()
                             } catch (e: Exception) {
                                 Log.w(TAG, "Failed to load config during app error, using fallback", e)
-                                AppConfig(ThemeMode.DARK, Language.ENGLISH)
+                                AppConfig(ThemeMode.DARK, Language.VIETNAMESE)
                             }
-                            _state.value = AppState.Error(
-                                message = result.message,
-                                dialogState = null,
-                                config = config
-                            )
+                            val currentState = _state.value
+                            when (currentState) {
+                                is AppState.Success -> {
+                                    _state.value = currentState.copy(
+                                        config = config,
+                                        dialogState = null
+                                    )
+                                }
+                                else -> {
+                                    _state.value = AppState.Success(
+                                        apps = emptyList(),
+                                        config = config,
+                                        logs = getCurrentLogs()
+                                    )
+                                }
+                            }
+                            showError(result.message, result.exception)
                         }
                     }
                 }
@@ -1635,7 +1659,7 @@ class AppBloc @Inject constructor(
             is AppEvent.OpenApp -> "OpenApp ${event.packageName}"
             is AppEvent.SearchApps -> "SearchApps '${event.query}'"
             is AppEvent.SetFilter -> "SetFilter ${event.filter}"
-            is AppEvent.SaveConfiguration -> "SaveConfiguration theme=${event.config.themeMode}, language=${event.config.language.code}, compact=${event.config.compactMode}"
+            is AppEvent.SaveConfiguration -> "SaveConfiguration theme=${event.config.themeMode}, language=${event.config.language.code}, compact=${event.config.compactMode}, debug=${event.config.debugLogging}, path=${event.config.downloadPath}"
             is AppEvent.UpdateAppProgress -> "UpdateAppProgress ${event.packageName} ${(event.progress * 100).toInt()}%"
             is AppEvent.UpdateAppStatus -> "UpdateAppStatus ${event.packageName} -> ${event.status}"
             is AppEvent.ShowError -> "ShowError ${event.message}"
@@ -1645,6 +1669,9 @@ class AppBloc @Inject constructor(
     }
 
     private fun addActionLog(level: String, message: String) {
+        if (!isDebugLoggingEnabled && level != "ERROR") {
+            return
+        }
         val timestamp = synchronized(logTimestampFormat) {
             logTimestampFormat.format(Date())
         }
@@ -1684,12 +1711,28 @@ class AppBloc @Inject constructor(
     private fun getCurrentLogs(): List<AppLogEntry> =
         synchronized(actionLogs) { actionLogs.toList() }
 
+    private fun logException(contextMessage: String, throwable: Throwable) {
+        addActionLog(
+            "ERROR",
+            "$contextMessage | ${throwable::class.java.simpleName}: ${throwable.localizedMessage ?: throwable.message ?: "n/a"}"
+        )
+        throwable.stackTrace.take(8).forEach { frame ->
+            addActionLog("STACK", "at $frame")
+        }
+    }
+
     /**
      * Show error message
      */
     private fun showError(message: String) {
         Log.w(TAG, "Showing error: $message")
         addActionLog("ERROR", message)
+        _toastMessage.value = message
+    }
+
+    private fun showError(message: String, throwable: Throwable) {
+        Log.w(TAG, "Showing error: $message", throwable)
+        logException(message, throwable)
         _toastMessage.value = message
     }
 
@@ -1778,7 +1821,7 @@ class AppBloc @Inject constructor(
         } catch (e: Exception) {
             Log.w(TAG, "Failed to load config, using fallback", e)
             // Fallback to dark theme and English as requested
-            AppConfig(ThemeMode.DARK, Language.ENGLISH)
+            AppConfig(ThemeMode.DARK, Language.VIETNAMESE)
         }
         
         val dialogState = DialogState.Configuration(
@@ -1863,6 +1906,7 @@ class AppBloc @Inject constructor(
         // Save to preferences
         Log.d(TAG, "🔧 Saving config to preferences...")
         preferencesManager.saveAppConfig(config)
+        isDebugLoggingEnabled = config.debugLogging
         Log.d(TAG, "🔧 Config saved to preferences successfully")
         
         // Update state
@@ -2000,8 +2044,9 @@ class AppBloc @Inject constructor(
         } catch (e: Exception) {
             Log.w(TAG, "Failed to load configuration, using fallback", e)
             // Use fallback configuration as requested: DARK theme and ENGLISH language
-            AppConfig(ThemeMode.DARK, Language.ENGLISH)
+            AppConfig(ThemeMode.DARK, Language.VIETNAMESE)
         }
+        isDebugLoggingEnabled = config.debugLogging
         
         Log.d(TAG, "Loaded configuration: theme=${config.themeMode}, language=${config.language.displayName}")
         

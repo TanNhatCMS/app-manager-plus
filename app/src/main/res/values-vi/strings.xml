@@ -1,11 +1,14 @@
 <resources>
-    <string name="app_name">App Manager bởi TanNhatCMS</string>
+    <string name="app_name">App Manager Plus</string>
     
     <!-- Settings Dialog -->
     <string name="settings">Cài đặt</string>
     <string name="theme">Giao diện</string>
     <string name="language">Ngôn ngữ</string>
     <string name="compact_mode">Giao diện thu gọn</string>
+    <string name="debug_logging">Ghi log debug</string>
+    <string name="download_path">Đường dẫn lưu APK</string>
+    <string name="download_path_hint">Để trống để dùng thư mục mặc định của ứng dụng</string>
     <string name="theme_light">Sáng</string>
     <string name="theme_dark">Tối</string>
     <string name="theme_system">Theo hệ thống</string>
@@ -21,7 +24,7 @@
     <string name="retry">Thử lại</string>
     <string name="loading_apps_message">Đang tải ứng dụng...</string>
     <string name="error_prefix">Lỗi: %1$s</string>
-    <string name="revanced_manager_by">App Manager Plus</string>
+    <string name="revanced_manager_by">App Manager Plus bởi TanNhatCMS</string>
     <string name="search_apps">Tìm kiếm ứng dụng…</string>
     <string name="no_apps_found">Không tìm thấy ứng dụng nào cho \"%1$s\"</string>
     <string name="no_apps_available">Không có ứng dụng nào</string>
@@ -103,7 +106,20 @@
     <string name="close_button">Đóng</string>
     <string name="view_logs">Xem log</string>
     <string name="clear_logs">Xóa log</string>
+    <string name="copy_logs">Sao chép log</string>
+    <string name="logs_copied">Đã sao chép log</string>
     <string name="no_logs_available">Chưa có log</string>
+    <string name="permission_guide_title">Cấp quyền cần thiết</string>
+    <string name="permission_guide_desc">Hoàn thành từng bước bên dưới. Ứng dụng sẽ tiếp tục khi tất cả quyền cần thiết đã được cấp.</string>
+    <string name="permission_notification_title">Quyền thông báo</string>
+    <string name="permission_notification_desc">Cần để hiển thị trạng thái tải xuống và cài đặt.</string>
+    <string name="permission_install_title">Cho phép cài ứng dụng không rõ nguồn</string>
+    <string name="permission_install_desc">Cần để cài file APK tải về từ ứng dụng này.</string>
+    <string name="permission_storage_title">Quyền truy cập tệp</string>
+    <string name="permission_storage_desc">Cần để đọc/ghi file APK trong thư mục tải xuống bạn chọn.</string>
+    <string name="permission_storage_legacy_desc">Cần để lưu và đọc file APK trên bộ nhớ thiết bị.</string>
+    <string name="permission_grant_now">Cấp quyền ngay</string>
+    <string name="permission_check_again">Kiểm tra lại</string>
     <string name="installing_multiple_apps">Đang cài %1$d ứng dụng...</string>
     <string name="installing_single_app">Đang cài %1$s...</string>
     <string name="downloads_in_progress">Đang tải xuống</string>
