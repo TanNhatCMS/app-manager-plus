@@ -3,11 +3,11 @@
     {
       "packageName": "com.app.manager",
       "title": "App Manager Plus",
-      "versionCode": 2,
-      "versionName": "2.0.0",
-      "description": "App Manager Plus v2.0.0 by TanNhatCMS(KietNT)",
+      "versionCode": 3,
+      "versionName": "2.0.1",
+      "description": "App Manager Plus v2.0.1 by TanNhatCMS(KietNT)",
       "iconUrl": "https://avatars.githubusercontent.com/u/101597779?s=48&v=4",
-      "downloadUrl": "https://github.com/TanNhatCMS/app-manager-plus/releases/download/2.0.0/app-manager-plus-release-v2.0.0.apk",
+      "downloadUrl": "https://github.com/TanNhatCMS/app-manager-plus/releases/download/2.0.1/app-manager-plus-release-v2.0.1.apk",
       "requiresMicroG": false,
       "index": 1
     }
