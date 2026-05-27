@@ -2,6 +2,7 @@ package com.app.manager
 
 import android.Manifest
 import android.content.Context
+import android.content.res.Configuration
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -89,6 +90,8 @@ class MainActivity : ComponentActivity() {
         
         // Make the app full screen
         WindowCompat.setDecorFitsSystemWindows(window, false)
+        window.statusBarColor = android.graphics.Color.TRANSPARENT
+        window.navigationBarColor = android.graphics.Color.TRANSPARENT
         
         setContent {
             val viewModel: AppBloc = hiltViewModel()
@@ -148,6 +151,20 @@ class MainActivity : ComponentActivity() {
             val contextWithLanguage = LocaleHelper.setLocale(context, cleanLanguageCode)
             super.attachBaseContext(contextWithLanguage)
         } ?: super.attachBaseContext(newBase)
+    }
+
+    /**
+     * Android 7+ quirk: after attachBaseContext the system may call applyOverrideConfiguration
+     * and reset the locale back to the device default. We prevent that by copying the locale
+     * we set in attachBaseContext back into overrideConfiguration before calling super.
+     */
+    override fun applyOverrideConfiguration(overrideConfiguration: Configuration?) {
+        if (overrideConfiguration != null) {
+            val uiMode = overrideConfiguration.uiMode
+            overrideConfiguration.setTo(baseContext.resources.configuration)
+            overrideConfiguration.uiMode = uiMode
+        }
+        super.applyOverrideConfiguration(overrideConfiguration)
     }
 
     private fun refreshPermissionState() {

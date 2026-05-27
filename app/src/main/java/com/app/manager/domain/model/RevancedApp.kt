@@ -16,7 +16,11 @@ data class RevancedApp(
     val requiresMicroG: Boolean,
     val index: Int, // Giữ lại index nếu cần sắp xếp (hoặc xóa nếu bạn muốn xóa nó)
     val status: AppStatus,
-    val downloadProgress: Float = 0f
+    val downloadProgress: Float = 0f,
+    val vendor: String? = null,       // "morphe" | "revanced" | null (manager/app chung)
+    val channel: String? = null,      // "stable" | "beta"
+    val variant: String? = null,      // microg variant: "standard" | "hw"
+    val variantLabel: String? = null  // nhãn hiển thị cho variant
 )
 
 /**
@@ -42,4 +46,4 @@ data class AppDownload(
     val filePath: String? = null,
     val progress: Float = 0f,
     val isComplete: Boolean = false
-) 
+)

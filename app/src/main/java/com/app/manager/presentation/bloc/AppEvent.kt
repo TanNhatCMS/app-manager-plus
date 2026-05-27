@@ -55,6 +55,14 @@ sealed class AppEvent {
     data class UpdateCompactMode(val enabled: Boolean) : AppEvent()
     data object LoadConfiguration : AppEvent()
     
+    // Favorites
+    data class ToggleFavorite(val packageName: String) : AppEvent()
+
+    // Vendor & beta events (V2)
+    data class SelectVendor(val vendor: String) : AppEvent()
+    data class ToggleShowBeta(val enabled: Boolean) : AppEvent()
+    data object ClearDownloadCache : AppEvent()
+    
     // Search events
     data class SearchApps(val query: String) : AppEvent()
     data object ClearSearch : AppEvent()

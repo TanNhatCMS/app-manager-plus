@@ -8,7 +8,9 @@ data class AppConfig(
     val language: Language = Language.VIETNAMESE,
     val compactMode: Boolean = true, // Default to compact mode enabled
     val debugLogging: Boolean = true,
-    val downloadPath: String = ""
+    val downloadPath: String = "",
+    val vendor: String? = null,       // "morphe" | "revanced" | null (chưa chọn)
+    val showBeta: Boolean = false     // hiển thị phiên bản thử nghiệm
 )
 
 /**

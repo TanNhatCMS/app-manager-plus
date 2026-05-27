@@ -20,6 +20,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.intOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import javax.inject.Inject
@@ -84,14 +85,17 @@ class AppRepositoryImpl @Inject constructor(
     }.flowOn(Dispatchers.IO)
 
     override fun getUpdatedApps(oldApps: List<RevancedApp>, newApps: List<RevancedApp>): List<RevancedApp> {
-        val oldMap = oldApps.associateBy { it.packageName }
+        val oldMap = oldApps.associateBy { "${it.packageName}:${it.vendor}:${it.channel}:${it.variant}" }
         return newApps.filter { newApp ->
-            val oldApp = oldMap[newApp.packageName] ?: return@filter true
+            val key = "${newApp.packageName}:${newApp.vendor}:${newApp.channel}:${newApp.variant}"
+            val oldApp = oldMap[key] ?: return@filter true
             oldApp.latestVersionCode != newApp.latestVersionCode ||
+                oldApp.latestVersionName != newApp.latestVersionName ||
                 oldApp.downloadUrl != newApp.downloadUrl ||
                 oldApp.iconUrl != newApp.iconUrl
         }
     }
+
 
     override suspend fun getInstalledVersion(packageName: String): String? {
         return appManager.getInstalledVersion(packageName)
@@ -149,6 +153,14 @@ class AppRepositoryImpl @Inject constructor(
     }
 
     private fun parseApps(root: JsonElement): List<RevancedApp> {
+        // --- V2 format: {"version": 2, "manager": {...}, "vendors": {"morphe": {...}, "revanced": {...}}} ---
+        if (root is JsonObject && root["version"]?.let {
+            (it as? JsonPrimitive)?.intOrNull
+        } == 2 && root["vendors"] is JsonObject) {
+            return parseV2(root)
+        }
+
+        // --- V1 format: {"apps": [...]} or raw array [...] ---
         val appArray = when (root) {
             is JsonArray -> root
             is JsonObject -> {
@@ -162,34 +174,81 @@ class AppRepositoryImpl @Inject constructor(
         }
 
         return appArray.mapIndexedNotNull { index, node ->
-            val obj = node as? JsonObject ?: return@mapIndexedNotNull null
-
-            val packageName = obj.string("packageName", "package_name", "package", "id") ?: return@mapIndexedNotNull null
-            val title = obj.string("title", "name") ?: packageName
-            val versionCode = obj.long("versionCode", "latestVersion", "code") ?: return@mapIndexedNotNull null
-            val versionName = obj.string("versionName", "version") ?: versionCode.toString() 
-            val description = obj.string("description", "desc") ?: ""
-            val iconUrl = obj.string("iconUrl", "icon_url", "icon")?.withBaseUrl() ?: ""
-            val downloadUrl = obj.string("downloadUrl", "download_url", "url", "apk", "link")?.withBaseUrl()
-                ?: return@mapIndexedNotNull null
-            val requiresMicroG = obj.boolean("requiresMicroG", "requires_microg", "microg") ?: false
-            val appIndex = obj.int("index", "order") ?: index
-            val currentVersion = appManager.getInstalledVersion(packageName)
-
-            RevancedApp(
-                packageName = packageName,
-                title = title,
-                latestVersionCode = versionCode,
-                latestVersionName = versionName,
-                currentVersion = currentVersion,
-                description = description,
-                iconUrl = iconUrl,
-                downloadUrl = downloadUrl,
-                requiresMicroG = requiresMicroG,
-                index = appIndex,
-                status = AppStatus.UNKNOWN
-            )
+            parseAppNode(node as? JsonObject ?: return@mapIndexedNotNull null, index)
         }
+    }
+
+    /**
+     * Parse V2 format: shared manager + vendor-specific apps
+     */
+    private fun parseV2(root: JsonObject): List<RevancedApp> {
+        val allApps = mutableListOf<RevancedApp>()
+
+        // Shared manager app (always first)
+        val managerNode = root["manager"] as? JsonObject
+        if (managerNode != null) {
+            val managerApp = parseAppNode(managerNode, 0)
+            if (managerApp != null) {
+                allApps.add(managerApp)
+            }
+        }
+
+        // Vendor-specific apps
+        val vendorsObj = root["vendors"] as? JsonObject
+        if (vendorsObj != null) {
+            for ((vendorKey, vendorValue) in vendorsObj) {
+                val vendor = vendorValue as? JsonObject ?: continue
+                val vendorApps = vendor["apps"] as? JsonArray ?: continue
+
+                for ((i, node) in vendorApps.withIndex()) {
+                    val obj = node as? JsonObject ?: continue
+                    val app = parseAppNode(obj, i + 1, vendorKey)
+                    if (app != null) {
+                        allApps.add(app)
+                    }
+                }
+            }
+        }
+
+        return allApps
+    }
+
+    /**
+     * Parse a single app node into RevancedApp
+     */
+    private fun parseAppNode(obj: JsonObject, fallbackIndex: Int, vendor: String? = null): RevancedApp? {
+        val packageName = obj.string("packageName", "package_name", "package", "id") ?: return null
+        val title = obj.string("title", "name") ?: packageName
+        val versionCode = obj.long("versionCode", "latestVersion", "code") ?: return null
+        val versionName = obj.string("versionName", "version") ?: versionCode.toString()
+        val description = obj.string("description", "desc") ?: ""
+        val iconUrl = obj.string("iconUrl", "icon_url", "icon")?.withBaseUrl() ?: ""
+        val downloadUrl = obj.string("downloadUrl", "download_url", "url", "apk", "link")?.withBaseUrl()
+            ?: return null
+        val requiresMicroG = obj.boolean("requiresMicroG", "requires_microg", "microg") ?: false
+        val appIndex = obj.int("index", "order") ?: fallbackIndex
+        val currentVersion = appManager.getInstalledVersion(packageName)
+        val channel = obj.string("channel")
+        val variant = obj.string("variant")
+        val variantLabel = obj.string("variantLabel")
+
+        return RevancedApp(
+            packageName = packageName,
+            title = title,
+            latestVersionCode = versionCode,
+            latestVersionName = versionName,
+            currentVersion = currentVersion,
+            description = description,
+            iconUrl = iconUrl,
+            downloadUrl = downloadUrl,
+            requiresMicroG = requiresMicroG,
+            index = appIndex,
+            status = AppStatus.UNKNOWN,
+            vendor = vendor,
+            channel = channel,
+            variant = variant,
+            variantLabel = variantLabel
+        )
     }
 
     private fun JsonObject.string(vararg keys: String): String? {
@@ -260,9 +319,10 @@ class AppRepositoryImpl @Inject constructor(
     companion object {
         private const val RAW_BASE_URL = "https://raw.githubusercontent.com/TanNhatCMS/app-manager-plus/main/"
         private val APP_ENDPOINTS = listOf(
+            "https://raw.githubusercontent.com/TanNhatCMS/app-manager-plus/main/apps-v2.json",
+            "apps-v2.json",
             "https://raw.githubusercontent.com/TanNhatCMS/app-manager-plus/main/apps.json",
             "apps.json"
         )
     }
 }
-

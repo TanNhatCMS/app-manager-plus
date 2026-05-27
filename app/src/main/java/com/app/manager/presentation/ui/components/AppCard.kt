@@ -18,6 +18,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.Warning
@@ -71,6 +73,8 @@ fun AppCard(
     onOpenClick: () -> Unit,
     onReinstallClick: () -> Unit,
     isCompactMode: Boolean = false,
+    isFavorite: Boolean = false,
+    onFavoriteClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -163,6 +167,16 @@ fun AppCard(
                     }
                 }
                 
+                // Favorite star button
+                Icon(
+                    imageVector = if (isFavorite) Icons.Filled.Star else Icons.Outlined.StarBorder,
+                    contentDescription = if (isFavorite) "Remove from favorites" else "Add to favorites",
+                    tint = if (isFavorite) Color(0xFFFFC107) else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clickable { onFavoriteClick() }
+                )
+
                 // Status indicator
                 AppStatusIndicator(
                     status = app.status,

@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.*
@@ -40,7 +41,8 @@ fun ConfigDialog(
     config: AppConfig,
     onSave: (AppConfig) -> Unit,
     onCancel: () -> Unit,
-    onCompactModeChange: (Boolean) -> Unit = {}
+    onCompactModeChange: (Boolean) -> Unit = {},
+    onClearCache: () -> Unit = {}
 ) {
     val context = LocalContext.current
 
@@ -50,6 +52,8 @@ fun ConfigDialog(
     var compactModeEnabled by remember(config) { mutableStateOf(config.compactMode) }
     var debugLoggingEnabled by remember(config) { mutableStateOf(config.debugLogging) }
     var downloadPath by remember(config) { mutableStateOf(config.downloadPath) }
+    var showBetaEnabled by remember(config) { mutableStateOf(config.showBeta) }
+    var selectedVendor by remember(config) { mutableStateOf(config.vendor) }
     var showThemeSelector by remember { mutableStateOf(false) }
     var showLanguageSelector by remember { mutableStateOf(false) }
 
@@ -443,6 +447,137 @@ fun ConfigDialog(
                     }
                 }
 
+                // Beta Versions Section
+                Column {
+                    Text(
+                        text = "Phiên bản thử nghiệm",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(
+                                2.dp,
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
+                                RoundedCornerShape(12.dp)
+                            ),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Hiển thị bản thử nghiệm (Beta)",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Text(
+                                    text = "Bao gồm phiên bản đang phát triển",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+
+                            Switch(
+                                checked = showBetaEnabled,
+                                onCheckedChange = {
+                                    showBetaEnabled = it
+                                }
+                            )
+                        }
+                    }
+                }
+
+                // Vendor Selection Section
+                Column {
+                    Text(
+                        text = "Nhà cung cấp (Vendor)",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        // MorPhe option
+                        Card(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { selectedVendor = "morphe" },
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (selectedVendor == "morphe")
+                                    MaterialTheme.colorScheme.primaryContainer
+                                else
+                                    MaterialTheme.colorScheme.surfaceVariant
+                            ),
+                            elevation = CardDefaults.cardElevation(
+                                defaultElevation = if (selectedVendor == "morphe") 4.dp else 1.dp
+                            )
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(12.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = "MorPhe",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = if (selectedVendor == "morphe") FontWeight.Bold else FontWeight.Normal
+                                )
+                                Text(
+                                    text = "YouTube Morphe + MicroG RE",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        // ReVanced option
+                        Card(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { selectedVendor = "revanced" },
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (selectedVendor == "revanced")
+                                    MaterialTheme.colorScheme.secondaryContainer
+                                else
+                                    MaterialTheme.colorScheme.surfaceVariant
+                            ),
+                            elevation = CardDefaults.cardElevation(
+                                defaultElevation = if (selectedVendor == "revanced") 4.dp else 1.dp
+                            )
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(12.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = "ReVanced",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = if (selectedVendor == "revanced") FontWeight.Bold else FontWeight.Normal
+                                )
+                                Text(
+                                    text = "YouTube ReVanced + MicroG",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+
                 // Download path section
                 Column {
                     Text(
@@ -482,6 +617,23 @@ fun ConfigDialog(
                     )
                 }
 
+                // Clear Cache Button
+                OutlinedButton(
+                    onClick = onClearCache,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Clear,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(stringResource(R.string.clear_cache))
+                }
+
             }
         },
         confirmButton = {
@@ -493,121 +645,21 @@ fun ConfigDialog(
                             language = selectedLanguage,
                             compactMode = compactModeEnabled,
                             debugLogging = debugLoggingEnabled,
-                            downloadPath = downloadPath.trim()
+                            downloadPath = downloadPath.trim(),
+                            vendor = selectedVendor,
+                            showBeta = showBetaEnabled
                         )
                     )
-                }
+                },
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Text(stringResource(R.string.apply))
             }
         },
         dismissButton = {
-            TextButton(
-                onClick = onCancel
-            ) {
+            TextButton(onClick = onCancel) {
                 Text(stringResource(R.string.cancel))
             }
         }
     )
 }
-
-@Composable
-private fun getThemeDisplayText(themeMode: ThemeMode): String {
-    return when (themeMode) {
-        ThemeMode.LIGHT -> stringResource(R.string.theme_light)
-        ThemeMode.DARK -> stringResource(R.string.theme_dark)
-        ThemeMode.SYSTEM -> stringResource(R.string.theme_system)
-    }
-}
-
-@Composable
-private fun ThemeItem(
-    themeMode: ThemeMode,
-    isSelected: Boolean,
-    onSelect: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .selectable(
-                selected = isSelected,
-                onClick = onSelect
-            )
-            .then(
-                if (isSelected) {
-                    Modifier.background(
-                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
-                        RoundedCornerShape(8.dp)
-                    )
-                } else {
-                    Modifier
-                }
-            )
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = when (themeMode) {
-                ThemeMode.LIGHT -> "☀️"
-                ThemeMode.DARK -> "🌙"
-                ThemeMode.SYSTEM -> "⚙️"
-            },
-            style = MaterialTheme.typography.headlineSmall,
-            fontSize = 18.sp,
-            modifier = Modifier.padding(end = 12.dp)
-        )
-        
-        Text(
-            text = when (themeMode) {
-                ThemeMode.LIGHT -> stringResource(R.string.theme_light)
-                ThemeMode.DARK -> stringResource(R.string.theme_dark)
-                ThemeMode.SYSTEM -> stringResource(R.string.theme_system)
-            },
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal
-        )
-    }
-}
-
-@Composable
-private fun LanguageItem(
-    language: Language,
-    isSelected: Boolean,
-    onSelect: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .selectable(
-                selected = isSelected,
-                onClick = onSelect
-            )
-            .then(
-                if (isSelected) {
-                    Modifier.background(
-                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
-                        RoundedCornerShape(8.dp)
-                    )
-                } else {
-                    Modifier
-                }
-            )
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = language.flagEmoji,
-            style = MaterialTheme.typography.headlineSmall,
-            fontSize = 18.sp,
-            modifier = Modifier.padding(end = 12.dp)
-        )
-        
-        Text(
-            text = language.displayName,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal
-        )
-    }
-}
-
-

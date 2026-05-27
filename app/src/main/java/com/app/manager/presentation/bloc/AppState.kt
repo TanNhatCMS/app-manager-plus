@@ -15,11 +15,11 @@ sealed class AppState {
         val filterOption: AppFilterOption = AppFilterOption.ALL,
         val dialogState: DialogState? = null,
         val config: AppConfig = AppConfig(),
-        val logs: List<AppLogEntry> = emptyList()
+        val logs: List<AppLogEntry> = emptyList(),
+        val favorites: Set<String> = emptySet()
     ) : AppState() {
         /**
-         * Returns filtered apps based on search query and active filter option.
-         * Search matches title or package name (case-insensitive).
+         * Returns filtered apps based on search query, active filter option, and favorites.
          */
         val filteredApps: List<RevancedApp>
             get() {
@@ -37,6 +37,9 @@ sealed class AppState {
                     }
                     AppFilterOption.UPDATES_AVAILABLE -> searched.filter {
                         it.status == AppStatus.UPDATE_AVAILABLE
+                    }
+                    AppFilterOption.FAVORITES -> searched.filter {
+                        it.packageName in favorites
                     }
                 }
             }
@@ -92,4 +95,4 @@ data class AppUiState(
     val app: RevancedApp,
     val isLoading: Boolean = false,
     val errorMessage: String? = null
-) 
+)

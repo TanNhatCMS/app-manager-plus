@@ -179,9 +179,19 @@ fun MainScreen(
                     },
                     onEvent = viewModel::handleEvent,
                     isCompactMode = currentState.config.compactMode,
+                    favorites = currentState.favorites,
                     modifier = Modifier.padding(paddingValues)
                 )
                 
+                // Vendor selection on first launch
+                if (currentState.config.vendor == null) {
+                    VendorSelectionDialog(
+                        onSelectVendor = { vendor ->
+                            viewModel.handleEvent(AppEvent.SelectVendor(vendor))
+                        }
+                    )
+                }
+
                 // Handle dialogs
                 currentState.dialogState?.let { dialogState ->
                     when (dialogState) {
@@ -209,7 +219,8 @@ fun MainScreen(
                                 config = dialogState.config,
                                 onSave = dialogState.onSave,
                                 onCancel = dialogState.onCancel,
-                                onCompactModeChange = { }
+                                onCompactModeChange = { },
+                                onClearCache = { viewModel.handleEvent(AppEvent.ClearDownloadCache) }
                             )
                         }
                         is DialogState.Logs -> {
@@ -234,6 +245,15 @@ fun MainScreen(
                     modifier = Modifier.padding(paddingValues)
                 )
                 
+                // Vendor selection on first launch
+                if (currentState.config.vendor == null) {
+                    VendorSelectionDialog(
+                        onSelectVendor = { vendor ->
+                            viewModel.handleEvent(AppEvent.SelectVendor(vendor))
+                        }
+                    )
+                }
+
                 // Handle dialogs in error state too
                 currentState.dialogState?.let { dialogState ->
                     when (dialogState) {
@@ -261,7 +281,8 @@ fun MainScreen(
                                 config = dialogState.config,
                                 onSave = dialogState.onSave,
                                 onCancel = dialogState.onCancel,
-                                onCompactModeChange = { }
+                                onCompactModeChange = { },
+                                onClearCache = { viewModel.handleEvent(AppEvent.ClearDownloadCache) }
                             )
                         }
                         is DialogState.Logs -> {
@@ -490,8 +511,10 @@ private fun AppListScreen(
     onFilterChange: (AppFilterOption) -> Unit = {},
     onEvent: (AppEvent) -> Unit,
     isCompactMode: Boolean = false,
+    favorites: Set<String> = emptySet(),
     modifier: Modifier = Modifier
 ) {
+
     val context = LocalContext.current
 
     LazyColumn(
@@ -499,7 +522,7 @@ private fun AppListScreen(
     ) {
         item {
             Text(
-                text = stringResource(R.string.revanced_manager_by),
+                text = stringResource(R.string.app_subtitle),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier
@@ -568,7 +591,9 @@ private fun AppListScreen(
                 onOpenClick = {
                     onEvent(AppEvent.OpenApp(app.packageName))
                 },
-                isCompactMode = isCompactMode
+                isCompactMode = isCompactMode,
+                isFavorite = app.packageName in favorites,
+                onFavoriteClick = { onEvent(AppEvent.ToggleFavorite(app.packageName)) }
             )
         }
 
@@ -849,9 +874,85 @@ private fun SearchAndFilterBar(
                         )
                     }
                 )
+                FilterChip(
+                    selected = filterOption == AppFilterOption.FAVORITES,
+                    onClick = { onFilterChange(AppFilterOption.FAVORITES) },
+                    label = {
+                        Text(
+                            text = stringResource(R.string.filter_favorites),
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    }
+                )
+                FilterChip(
+                    selected =
+                    onClick = { onFilterChange(AppFilterOption.UPDATES_AVAILABLE) },
+                    label = {
+                        Text(
+                            text = stringResource(R.string.filter_updates),
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    }
+                )
             }
         }
     }
 }
 
 
+
+@Composable
+fun VendorSelectionDialog(
+    onSelectVendor: (String) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = { },
+        title = {
+            Text(
+                text = "Chọn Vendor",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = "Vui lòng chọn nhà cung cấp để tiếp tục:",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                Button(
+                    onClick = { onSelectVendor("morphe") },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Column(Modifier.padding(8.dp)) {
+                        Text("MorPhe", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                        Text("YouTube Morphe + MicroG RE", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+                
+                Button(
+                    onClick = { onSelectVendor("revanced") },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.secondary
+                    )
+                ) {
+                    Column(Modifier.padding(8.dp)) {
+                        Text("ReVanced", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                        Text("YouTube ReVanced + MicroG", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {}
+    )
+}

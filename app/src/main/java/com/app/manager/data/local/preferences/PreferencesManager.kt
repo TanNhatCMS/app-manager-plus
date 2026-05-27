@@ -32,12 +32,17 @@ class PreferencesManager @Inject constructor(
         val downloadPath = (sharedPreferences.getString(KEY_DOWNLOAD_PATH, defaultDownloadPath)
             ?: defaultDownloadPath).ifBlank { defaultDownloadPath }
 
+        val vendor = sharedPreferences.getString(KEY_VENDOR, null)
+        val showBeta = sharedPreferences.getBoolean(KEY_SHOW_BETA, false)
+
         return AppConfig(
             themeMode = theme,
             language = language,
             compactMode = compactMode,
             debugLogging = debugLogging,
-            downloadPath = downloadPath
+            downloadPath = downloadPath,
+            vendor = vendor,
+            showBeta = showBeta
         )
     }
 
@@ -48,7 +53,25 @@ class PreferencesManager @Inject constructor(
             .putBoolean(KEY_COMPACT_MODE, config.compactMode)
             .putBoolean(KEY_DEBUG_LOGGING, config.debugLogging)
             .putString(KEY_DOWNLOAD_PATH, config.downloadPath.ifBlank { defaultDownloadPath() })
+            .putString(KEY_VENDOR, config.vendor)
+            .putBoolean(KEY_SHOW_BETA, config.showBeta)
             .apply()
+    }
+
+    fun getSelectedVendor(): String? {
+        return sharedPreferences.getString(KEY_VENDOR, null)
+    }
+
+    fun setSelectedVendor(vendor: String) {
+        sharedPreferences.edit().putString(KEY_VENDOR, vendor).apply()
+    }
+
+    fun isShowBeta(): Boolean {
+        return sharedPreferences.getBoolean(KEY_SHOW_BETA, false)
+    }
+
+    fun setShowBeta(show: Boolean) {
+        sharedPreferences.edit().putBoolean(KEY_SHOW_BETA, show).apply()
     }
 
     fun isAutoInstallEnabled(): Boolean {
@@ -63,6 +86,28 @@ class PreferencesManager @Inject constructor(
         sharedPreferences.edit()
             .putString("pending_install_$packageName", path)
             .apply()
+    }
+
+    fun getFavorites(): Set<String> {
+        val saved = sharedPreferences.getString(KEY_FAVORITES, "") ?: ""
+        return if (saved.isBlank()) emptySet() else saved.split(",").toSet()
+    }
+
+    fun isFavorite(packageName: String): Boolean {
+        return packageName in getFavorites()
+    }
+
+    fun toggleFavorite(packageName: String): Boolean {
+        val current = getFavorites().toMutableSet()
+        val added = if (packageName in current) {
+            current.remove(packageName)
+            false
+        } else {
+            current.add(packageName)
+            true
+        }
+        sharedPreferences.edit().putString(KEY_FAVORITES, current.joinToString(",")).apply()
+        return added
     }
 
     fun removeKey(key: String) {
@@ -82,6 +127,8 @@ class PreferencesManager @Inject constructor(
         private const val KEY_DEBUG_LOGGING = "debug_logging"
         private const val KEY_DOWNLOAD_PATH = "download_path"
         private const val KEY_AUTO_INSTALL = "auto_install"
+        private const val KEY_VENDOR = "vendor"
+        private const val KEY_SHOW_BETA = "show_beta"
+        private const val KEY_FAVORITES = "favorites"
     }
 }
-

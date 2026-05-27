@@ -22,7 +22,7 @@ class LocaleHelper {
             val locale = Locale(language)
             Locale.setDefault(locale)
             
-            val config = Configuration()
+            val config = Configuration(context.resources.configuration)
             config.setLocale(locale)
             
             android.util.Log.d(TAG, "Setting locale to: $language")
@@ -35,7 +35,7 @@ class LocaleHelper {
          * Wrap context with new locale configuration
          */
         fun wrap(context: Context, language: String): ContextWrapper {
-            val config = Configuration()
+            val config = Configuration(context.resources.configuration)
             val locale = Locale(language)
             config.setLocale(locale)
             

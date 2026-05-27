@@ -17,7 +17,7 @@ fun loadVersionProps(): Properties {
         versionProps.load(FileInputStream(versionPropsFile))
     } else {
         // Initialize with default values if file doesn't exist
-        versionProps["VERSION_CODE"] = "1"
+        versionProps["VERSION_CODE"] = "2"
         versionProps["VERSION_NAME_MAJOR"] = "2"
         versionProps["VERSION_NAME_MINOR"] = "0"
         versionProps["VERSION_NAME_PATCH"] = "0"

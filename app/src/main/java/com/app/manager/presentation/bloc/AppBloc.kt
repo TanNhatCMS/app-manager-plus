@@ -50,6 +50,7 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 
 /**
@@ -98,7 +99,16 @@ class AppBloc @Inject constructor(
     
     // Track pending uninstalls/reinstalls for system event handling
     private val pendingReinstalls = mutableMapOf<String, String>() // packageName -> apkPath
+    private val pendingReinstallDownloads = mutableMapOf<String, String>() // packageName -> downloadUrl
     private val pendingUninstallChecks = mutableSetOf<String>() // packages waiting for uninstall confirmation
+    
+    // V2 vendor/beta filtering
+    private var allFetchedApps: List<RevancedApp> = emptyList()
+    private var selectedVendor: String? = null
+    private val maxProgressPerDownload = ConcurrentHashMap<String, Float>()
+    private val activeDownloadUrls = ConcurrentHashMap<String, String>()
+    private var showBeta: Boolean = false
+    private var favoriteSet: Set<String> = emptySet()
     
     data class PendingInstallation(
         val packageName: String,
@@ -186,9 +196,15 @@ class AppBloc @Inject constructor(
                         
                         // Check if this was part of a reinstall flow
                         val pendingPath = pendingReinstalls.remove(event.packageName)
+                        val pendingUrl = pendingReinstallDownloads.remove(event.packageName)
                         if (pendingPath != null) {
-                            Log.i(TAG, "🔄 Proceeding with reinstall after uninstall: ${event.packageName}")
+                            Log.i(TAG, "🔄 Reinstall after uninstall: ${event.packageName}")
                             installApp(event.packageName, pendingPath)
+                        } else if (pendingUrl != null) {
+                            Log.i(TAG, "🔄 Re-downloading after uninstall: ${event.packageName}")
+                            completedDownloads.remove(event.packageName)
+                            updateAppStatus(event.packageName, AppStatus.DOWNLOADING)
+                            downloadApp(event.packageName, pendingUrl)
                         } else {
                             updateAppStatus(event.packageName, AppStatus.NOT_INSTALLED)
                             showToast(stringProvider.getString(R.string.uninstallation_completed))
@@ -312,9 +328,15 @@ class AppBloc @Inject constructor(
                     Log.i(TAG, "📦 Background uninstall detected: $packageName")
                     pendingUninstallChecks.remove(packageName)
                     val path = pendingReinstalls.remove(packageName)
+                    val downloadUrl = pendingReinstallDownloads.remove(packageName)
                     if (path != null) {
-                        Log.i(TAG, "🔄 Proceeding with reinstall after background uninstall: $packageName")
+                        Log.i(TAG, "🔄 Reinstall after background uninstall: $packageName")
                         installApp(packageName, path)
+                    } else if (downloadUrl != null) {
+                        Log.i(TAG, "🔄 Re-downloading after background uninstall: $packageName")
+                        completedDownloads.remove(packageName)
+                        updateAppStatus(packageName, AppStatus.DOWNLOADING)
+                        downloadApp(packageName, downloadUrl)
                     } else {
                         updateAppStatus(packageName, AppStatus.NOT_INSTALLED)
                         showToast(stringProvider.getString(R.string.uninstallation_completed))
@@ -516,6 +538,114 @@ class AppBloc @Inject constructor(
     /**
      * Handle incoming events
      */
+    // --- V2 vendor/beta filtering helpers ---
+
+    private fun filterAppsByVendorAndBeta(apps: List<RevancedApp>): List<RevancedApp> {
+        val vendor = selectedVendor
+        if (vendor == null) return apps
+        return apps.filter { app ->
+            val isManager = app.vendor == null
+            val matchesVendor = isManager || app.vendor == vendor
+            val passesBeta = showBeta || app.channel != "beta"
+            matchesVendor && passesBeta
+        }
+    }
+
+    private fun selectVendor(vendor: String) {
+        Log.i(TAG, "Vendor selected: $vendor")
+        selectedVendor = vendor
+        preferencesManager.setSelectedVendor(vendor)
+        updateConfigInState { it.copy(vendor = vendor) }
+        reapplyVendorFilter()
+    }
+
+    private fun toggleShowBeta(enabled: Boolean) {
+        Log.i(TAG, "Show beta toggled: $enabled")
+        showBeta = enabled
+        preferencesManager.setShowBeta(enabled)
+        updateConfigInState { it.copy(showBeta = enabled) }
+        reapplyVendorFilter()
+    }
+
+    private fun clearDownloadCache() {
+        val deletedCount = cleanupDownloadCache()
+        showToast(stringProvider.getString(R.string.cache_cleared, deletedCount))
+        Log.i(TAG, "🗑️ Cache cleared: $deletedCount files deleted")
+    }
+
+    private fun cleanupDownloadCache(): Int {
+        var count = 0
+        // Clean internal cache
+        val internalDir = File(context.cacheDir, "downloads")
+        if (internalDir.exists()) {
+            internalDir.listFiles()?.forEach { file ->
+                if (file.isFile && file.name.endsWith(".apk")) {
+                    if (file.delete()) count++
+                }
+            }
+        }
+        // Clean configured download path
+        val config = preferencesManager.getAppConfig()
+        if (config.downloadPath.isNotBlank()) {
+            val downloadDir = if (config.downloadPath.startsWith("content://")) {
+                null // Skip SAF paths for cache cleanup
+            } else {
+                File(config.downloadPath)
+            }
+            downloadDir?.let { dir ->
+                if (dir.exists() && dir.isDirectory) {
+                    dir.listFiles()?.forEach { file ->
+                        if (file.isFile && file.name.endsWith(".apk")) {
+                            if (file.delete()) count++
+                        }
+                    }
+                }
+            }
+        }
+        return count
+    }
+
+    private fun toggleFavorite(packageName: String) {
+        val added = preferencesManager.toggleFavorite(packageName)
+        favoriteSet = preferencesManager.getFavorites()
+        val currentState = _state.value
+        if (currentState is AppState.Success) {
+            _state.value = currentState.copy(favorites = favoriteSet)
+        }
+        showToast(stringProvider.getString(
+            if (added) R.string.favorite_added else R.string.favorite_removed
+        ))
+    }
+
+    private fun reapplyVendorFilter() {
+        val filtered = filterAppsByVendorAndBeta(allFetchedApps)
+        val currentState = _state.value
+        if (currentState is AppState.Success) {
+            _state.value = currentState.copy(apps = filtered)
+        }
+    }
+
+    private fun storeAndFilter(apps: List<RevancedApp>, config: AppConfig): List<RevancedApp> {
+        allFetchedApps = apps
+        selectedVendor = config.vendor
+        showBeta = config.showBeta
+        favoriteSet = preferencesManager.getFavorites()
+        return filterAppsByVendorAndBeta(apps)
+    }
+
+    private fun updateConfigInState(transform: (AppConfig) -> AppConfig) {
+        val currentState = _state.value
+        when (currentState) {
+            is AppState.Success -> {
+                _state.value = currentState.copy(config = transform(currentState.config))
+            }
+            is AppState.Error -> {
+                _state.value = currentState.copy(config = transform(currentState.config))
+            }
+            else -> {}
+        }
+    }
+
     fun handleEvent(event: AppEvent) {
         Log.d(TAG, "Handling event: ${event::class.simpleName}")
         logEvent(event)
@@ -559,6 +689,12 @@ class AppBloc @Inject constructor(
                 event.completedPackages, event.completedNames, event.completedPaths,
                 event.failedPackages, event.failedNames, event.failedErrors
             )
+            
+            // Vendor & beta events (V2)
+            is AppEvent.SelectVendor -> selectVendor(event.vendor)
+            is AppEvent.ToggleShowBeta -> toggleShowBeta(event.enabled)
+            is AppEvent.ClearDownloadCache -> clearDownloadCache()
+            is AppEvent.ToggleFavorite -> toggleFavorite(event.packageName)
             
             // Search events
             is AppEvent.SearchApps -> searchApps(event.query)
@@ -624,7 +760,7 @@ class AppBloc @Inject constructor(
                                 Log.w(TAG, "Failed to load config, using fallback", e)
                                 AppConfig(ThemeMode.DARK, Language.VIETNAMESE)
                             }
-                            _state.value = AppState.Success(result.data, config = config)
+                            _state.value = AppState.Success(storeAndFilter(result.data, config), config = config, favorites = favoriteSet)
                             
                             // Start background refresh after a short delay to let UI render
                             viewModelScope.launch {
@@ -682,7 +818,7 @@ class AppBloc @Inject constructor(
                                         AppConfig(ThemeMode.DARK, Language.VIETNAMESE)
                                     }
                                     
-                                    _state.value = AppState.Success(newApps, config = config)
+                                    _state.value = AppState.Success(storeAndFilter(newApps, config), config = config, favorites = favoriteSet)
                                     
                                     // Show a subtle toast if there are significant updates
                                     if (updatedApps.size > 1) {
@@ -750,7 +886,7 @@ class AppBloc @Inject constructor(
                                 Log.w(TAG, "Failed to load config during app loading, using fallback", e)
                                 AppConfig(ThemeMode.DARK, Language.VIETNAMESE)
                             }
-                            _state.value = AppState.Success(result.data, config = config)
+                            _state.value = AppState.Success(storeAndFilter(result.data, config), config = config, favorites = favoriteSet)
                         }
                         is Result.Error -> {
                             Log.e(TAG, "Failed to load apps", result.exception)
@@ -791,6 +927,7 @@ class AppBloc @Inject constructor(
      * Download an app using modern WorkManager-based system
      */
     private fun downloadApp(packageName: String, downloadUrl: String) {
+        activeDownloadUrls[packageName] = downloadUrl
         Log.i(TAG, "Starting download: $packageName")
         Log.d(TAG, "Download URL: $downloadUrl")
         
@@ -892,6 +1029,8 @@ class AppBloc @Inject constructor(
         Log.i(TAG, "🚀 Download completed, queueing for installation: $packageName -> $filePath")
         completedDownloads.add(packageName)
         activeDownloads.remove(packageName)
+        val urlCleanup = activeDownloadUrls.remove(packageName)
+        if (urlCleanup != null) maxProgressPerDownload.remove(urlCleanup)
         
         // Get app name for better logging
         val currentState = _state.value
@@ -912,6 +1051,8 @@ class AppBloc @Inject constructor(
     private fun handleDownloadFailed(packageName: String, error: String) {
         Log.e(TAG, "Download failed: $packageName - $error")
         activeDownloads.remove(packageName)
+        val urlCleanup = activeDownloadUrls.remove(packageName)
+        if (urlCleanup != null) maxProgressPerDownload.remove(urlCleanup)
 
         // Determine correct status from what is actually installed on the device
         val restoredStatus = resolveActualStatus(packageName)
@@ -927,6 +1068,8 @@ class AppBloc @Inject constructor(
         Log.i(TAG, "Cancelling download: $packageName")
         activeDownloads[packageName]?.cancel()
         activeDownloads.remove(packageName)
+        val urlCleanup = activeDownloadUrls.remove(packageName)
+        if (urlCleanup != null) maxProgressPerDownload.remove(urlCleanup)
 
         simpleDownloadManager.cancelDownload(packageName)
 
@@ -1079,6 +1222,14 @@ class AppBloc @Inject constructor(
                 }
                 
                 _state.value = currentState.copy(apps = updatedApps)
+                // Clean up APK file after successful installation
+                val pendingInstall = installationQueue.find { it.packageName == packageName }
+                if (pendingInstall != null) {
+                    runCatching { File(pendingInstall.filePath).delete() }
+                    Log.i(TAG, "🗑️ Deleted APK after install: ${pendingInstall.filePath}")
+                }
+                // Download URL tracking already cleaned up in handleDownloadCompleted
+                
                 showToast(stringProvider.getString(R.string.installation_completed))
                 
                 // Clear pending install state and retries
@@ -1619,12 +1770,19 @@ class AppBloc @Inject constructor(
     /**
      * Update app progress
      */
-    private fun updateAppProgress(packageName: String, progress: Float) {
+    private fun updateAppProgress(packageName: String, progress: Float, downloadUrl: String? = null) {
+        // Anti-jump: only update if progress increased (or is final 1.0)
+        val effectiveUrl = downloadUrl ?: activeDownloadUrls[packageName]
+        if (effectiveUrl != null) {
+            val prevMax = maxProgressPerDownload.getOrDefault(effectiveUrl, -1f)
+            if (progress <= prevMax && progress < 1f) return
+            maxProgressPerDownload[effectiveUrl] = progress
+        }
         val currentState = _state.value
         if (currentState is AppState.Success) {
             val updatedApps = currentState.apps.map { app ->
                 if (app.packageName == packageName) {
-                    app.copy(downloadProgress = progress)
+                    if (effectiveUrl == null || app.downloadUrl == effectiveUrl) app.copy(downloadProgress = progress) else app
                 } else {
                     app
                 }
@@ -1636,12 +1794,13 @@ class AppBloc @Inject constructor(
     /**
      * Update app status
      */
-    private fun updateAppStatus(packageName: String, status: AppStatus) {
+    private fun updateAppStatus(packageName: String, status: AppStatus, downloadUrl: String? = null) {
+        val effectiveUrl = downloadUrl ?: activeDownloadUrls[packageName]
         val currentState = _state.value
         if (currentState is AppState.Success) {
             val updatedApps = currentState.apps.map { app ->
                 if (app.packageName == packageName) {
-                    app.copy(status = status)
+                    if (effectiveUrl == null || app.downloadUrl == effectiveUrl) app.copy(status = status) else app
                 } else {
                     app
                 }
@@ -1684,6 +1843,10 @@ class AppBloc @Inject constructor(
             is AppEvent.AutoInstallAllCompleted -> "AutoInstallAllCompleted success=${event.completedPackages.size} failed=${event.failedPackages.size}"
             AppEvent.ShowConfigDialog -> "ShowConfigDialog"
             AppEvent.ShowLogsDialog -> "ShowLogsDialog"
+            is AppEvent.SelectVendor -> "SelectVendor ${event.vendor}"
+            is AppEvent.ToggleShowBeta -> "ToggleShowBeta ${event.enabled}"
+            is AppEvent.ClearDownloadCache -> "ClearDownloadCache"
+            is AppEvent.ToggleFavorite -> "ToggleFavorite ${event.packageName}"
             AppEvent.ClearLogs -> "ClearLogs"
         }
         addActionLog("EVENT", detail)
@@ -1930,6 +2093,9 @@ class AppBloc @Inject constructor(
         Log.d(TAG, "🔧 Saving config to preferences...")
         preferencesManager.saveAppConfig(config)
         isDebugLoggingEnabled = config.debugLogging
+        selectedVendor = config.vendor
+        showBeta = config.showBeta
+        favoriteSet = preferencesManager.getFavorites()
         Log.d(TAG, "🔧 Config saved to preferences successfully")
         
         // Update state
@@ -2070,6 +2236,9 @@ class AppBloc @Inject constructor(
             AppConfig(ThemeMode.DARK, Language.VIETNAMESE)
         }
         isDebugLoggingEnabled = config.debugLogging
+        selectedVendor = config.vendor
+        showBeta = config.showBeta
+        favoriteSet = preferencesManager.getFavorites()
         
         Log.d(TAG, "Loaded configuration: theme=${config.themeMode}, language=${config.language.displayName}")
         
