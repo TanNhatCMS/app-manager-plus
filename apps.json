@@ -13,6 +13,28 @@
     },
     {
       "packageName": "app.morphe.android.youtube",
+      "title": "Youtube Morphe Ổn định",
+      "versionCode": 2147483647,
+      "versionName": "20.47.62",
+      "description": "Youtube Morphe v20.45.36 (Morphe Patches v1.23.0)",
+      "iconUrl": "https://avatars.githubusercontent.com/u/246280111?s=48&v=4",
+      "downloadUrl": "https://github.com/TanNhatCMS/app-manager-plus/releases/download/1.0.0/YouTube_Morphe-v20.47.62-patches-v1.29.0.apk",
+      "requiresMicroG": true,
+      "index": 2
+    },
+    {
+      "packageName": "app.revanced.android.gms",
+      "title": "MicroG RE",
+      "versionCode": 255034001,
+      "versionName": "6.1.4",
+      "description": "MicroG Services v6.1.4 (MorpheApp build)",
+      "iconUrl": "https://avatars.githubusercontent.com/u/246280111?s=48&v=4",
+      "downloadUrl": "https://github.com/MorpheApp/MicroG-RE/releases/download/6.1.4/microg-6.1.4.apk",
+      "requiresMicroG": false,
+      "index": 3
+    },
+    {
+      "packageName": "app.morphe.android.youtube",
       "title": "Youtube Morphe Thử nghiệm",
       "versionCode": 2147483647,
       "versionName": "21.13.163",
@@ -20,19 +42,9 @@
       "iconUrl": "https://avatars.githubusercontent.com/u/246280111?s=48&v=4",
       "downloadUrl": "https://github.com/TanNhatCMS/app-manager-plus/releases/download/1.0.0/YouTube_Morphe-v21.13.163-v1.23.0-dev.1.apk",
       "requiresMicroG": true,
-      "index": 2
+      "index": 4
     },
-    {
-      "packageName": "app.morphe.android.youtube",
-      "title": "Youtube Morphe Ổn định",
-      "versionCode": 2147483647,
-      "versionName": "20.45.36",
-      "description": "Youtube Morphe v20.45.36 (Morphe Patches v1.23.0)",
-      "iconUrl": "https://avatars.githubusercontent.com/u/246280111?s=48&v=4",
-      "downloadUrl": "https://github.com/TanNhatCMS/app-manager-plus/releases/download/1.0.0/YouTube_Morphe-v20.45.36-patches-v1.23.0.apk",
-      "requiresMicroG": true,
-      "index": 3
-    },
+
     {
       "packageName": "app.revanced.android.youtube",
       "title": "Youtube Revanded Ổn định",
@@ -42,17 +54,6 @@
       "iconUrl": "https://avatars.githubusercontent.com/u/101597779?s=48&v=4",
       "downloadUrl": "https://github.com/TanNhatCMS/app-manager-plus/releases/download/1.0.0/YouTube_ReVanced-v20.40.45-v6.1.0.apk",
       "requiresMicroG": true,
-      "index": 4
-    },
-    {
-      "packageName": "app.revanced.android.gms",
-      "title": "MicroG RE",
-      "versionCode": 255034001,
-      "versionName": "6.1.1",
-      "description": "MicroG Services v6.1.1 (MorpheApp build)",
-      "iconUrl": "https://avatars.githubusercontent.com/u/246280111?s=48&v=4",
-      "downloadUrl": "https://github.com/MorpheApp/MicroG-RE/releases/download/6.1.1/microg-6.1.1.apk",
-      "requiresMicroG": false,
       "index": 5
     },
     {
