@@ -663,3 +663,60 @@ fun ConfigDialog(
         }
     )
 }
+
+@Composable
+fun getThemeDisplayText(themeMode: ThemeMode): String = when (themeMode) {
+    ThemeMode.LIGHT -> stringResource(R.string.theme_light)
+    ThemeMode.DARK -> stringResource(R.string.theme_dark)
+    ThemeMode.SYSTEM -> stringResource(R.string.theme_system)
+}
+
+@Composable
+fun ThemeItem(
+    themeMode: ThemeMode,
+    isSelected: Boolean,
+    onSelect: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onSelect() }
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        RadioButton(
+            selected = isSelected,
+            onClick = onSelect
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            text = getThemeDisplayText(themeMode),
+            style = MaterialTheme.typography.bodyMedium
+        )
+    }
+}
+
+@Composable
+fun LanguageItem(
+    language: Language,
+    isSelected: Boolean,
+    onSelect: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onSelect() }
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        RadioButton(
+            selected = isSelected,
+            onClick = onSelect
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            text = "${language.flagEmoji}  ${language.displayName}",
+            style = MaterialTheme.typography.bodyMedium
+        )
+    }
+}

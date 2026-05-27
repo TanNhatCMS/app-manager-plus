@@ -884,16 +884,6 @@ private fun SearchAndFilterBar(
                         )
                     }
                 )
-                FilterChip(
-                    selected =
-                    onClick = { onFilterChange(AppFilterOption.UPDATES_AVAILABLE) },
-                    label = {
-                        Text(
-                            text = stringResource(R.string.filter_updates),
-                            style = MaterialTheme.typography.labelSmall
-                        )
-                    }
-                )
             }
         }
     }
