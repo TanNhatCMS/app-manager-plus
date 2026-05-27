@@ -90,7 +90,9 @@ class MainActivity : ComponentActivity() {
         
         // Make the app full screen
         WindowCompat.setDecorFitsSystemWindows(window, false)
+        @Suppress("DEPRECATION")
         window.statusBarColor = android.graphics.Color.TRANSPARENT
+        @Suppress("DEPRECATION")
         window.navigationBarColor = android.graphics.Color.TRANSPARENT
         
         setContent {
