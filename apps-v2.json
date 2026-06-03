@@ -24,10 +24,10 @@
           "packageName": "app.morphe.android.youtube",
           "title": "YouTube Morphe Ổn định",
           "versionCode": 2147483647,
-          "versionName": "20.47.62",
-          "description": "YouTube Morphe v20.47.62 (Morphe Patches v1.29.0)",
+          "versionName": "20.51.39",
+          "description": "YouTube Morphe v20.51.39 (Morphe Patches v1.30.0)",
           "iconUrl": "https://avatars.githubusercontent.com/u/246280111?s=48&v=4",
-          "downloadUrl": "https://github.com/TanNhatCMS/app-manager-plus/releases/download/1.0.0/YouTube_Morphe-v20.47.62-patches-v1.29.0.apk",
+          "downloadUrl": "https://github.com/TanNhatCMS/app-manager-plus/releases/download/3-6-2026/YouTube_Morphe-v20.51.39-patches-v1.30.0.apk",
           "requiresMicroG": true,
           "index": 1
         },
