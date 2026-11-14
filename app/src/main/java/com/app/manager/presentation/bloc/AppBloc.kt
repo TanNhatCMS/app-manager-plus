@@ -15,8 +15,10 @@ import androidx.lifecycle.viewModelScope
 import com.app.manager.R
 import com.app.manager.core.common.LocaleHelper
 import com.app.manager.core.common.Result
+import com.app.manager.core.common.VersionComparator
 import com.app.manager.core.common.StringProvider
 import com.app.manager.data.local.preferences.PreferencesManager
+import com.app.manager.data.manager.ApkSignatureVerifier
 import com.app.manager.data.manager.AppManager
 import com.app.manager.data.manager.DownloadService
 import com.app.manager.data.manager.SimpleDownloadManager
@@ -31,14 +33,15 @@ import com.app.manager.domain.model.Language
 import com.app.manager.domain.model.RevancedApp
 import com.app.manager.domain.model.ThemeMode
 import com.app.manager.domain.usecase.AppManagementUseCases
-import com.app.manager.domain.usecase.DownloadAppUseCase
 import com.app.manager.domain.usecase.GetAppsUseCase
 import com.app.manager.domain.usecase.InstallAppUseCase
 import com.app.manager.domain.usecase.OpenAppUseCase
 import com.app.manager.domain.usecase.UninstallAppUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -66,6 +69,7 @@ class AppBloc @Inject constructor(
     private val preferencesManager: PreferencesManager,
     private val stringProvider: StringProvider,
     private val packageInstaller: RevancedPackageInstaller,
+    private val installedBuildStore: com.app.manager.core.common.InstalledBuildStore,
     private val downloadStateRepository: DownloadStateRepository,
     private val packageChangedReceiver: PackageChangedReceiver
 ) : ViewModel(), DefaultLifecycleObserver {
@@ -73,6 +77,10 @@ class AppBloc @Inject constructor(
     companion object {
         private const val TAG = "AppBloc"
         private const val MAX_LOG_ENTRIES = 500
+
+        /** The package every MicroG build installs as — catalog entries flagged `requiresMicroG`
+         *  need *a* build of it (MicroG RE and the ReVanced GmsCore both use this package). */
+        const val MICROG_PACKAGE = "app.revanced.android.gms"
     }
 
     private val _state = MutableStateFlow<AppState>(AppState.Loading)
@@ -81,6 +89,8 @@ class AppBloc @Inject constructor(
     private val _toastMessage = MutableStateFlow<String?>(null)
     val toastMessage: StateFlow<String?> = _toastMessage.asStateFlow()
     private val actionLogs = mutableListOf<AppLogEntry>()
+    private var currentLogDay = ""
+    private val logDayFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
     private val logTimestampFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
     @Volatile
     private var isDebugLoggingEnabled = true
@@ -96,10 +106,19 @@ class AppBloc @Inject constructor(
     
     // Track if app was backgrounded to determine auto-install behavior
     private var wasAppBackgrounded = false
+
+    /** Packages whose silent install was already retried with the system dialog (issue #63). */
+    private val silentInstallRetried = mutableSetOf<String>()
+
+    /** packageName → versionName of the last install success we already settled in the UI. */
+    private val handledInstallSuccess = mutableMapOf<String, String>()
     
     // Track pending uninstalls/reinstalls for system event handling
     private val pendingReinstalls = mutableMapOf<String, String>() // packageName -> apkPath
     private val pendingReinstallDownloads = mutableMapOf<String, String>() // packageName -> downloadUrl
+
+    /** The "N updates available" prompt is shown at most once per session. */
+    private var updatePromptShownThisSession = false
     private val pendingUninstallChecks = mutableSetOf<String>() // packages waiting for uninstall confirmation
     
     // V2 vendor/beta filtering
@@ -154,7 +173,11 @@ class AppBloc @Inject constructor(
         Log.i(TAG, "AppBloc initialized")
         handleEvent(AppEvent.LoadConfiguration)
         handleEvent(AppEvent.LoadAppsFromCacheFirst)  // Changed to load cache first
-        
+
+        // Sessions left over from a killed process would otherwise linger forever (and hold
+        // storage), and later surface as spurious aborted installs.
+        packageInstaller.abandonOrphanedSessions()
+
         // Listen for installation events from PackageInstaller
         setupPackageInstallerListener()
         
@@ -185,7 +208,7 @@ class AppBloc @Inject constructor(
                         }
                         Log.i(TAG, "📦 System event: Package installed/updated: $packageName")
                         pendingUninstallChecks.remove(packageName)
-                        val installedVersion = appManager.getInstalledVersion(packageName)
+                        val installedVersion = appManager.getInstalledVersionName(packageName)
                         if (installedVersion != null) {
                             handleInstallationSuccess(packageName, installedVersion)
                         }
@@ -193,6 +216,8 @@ class AppBloc @Inject constructor(
                     is PackageEvent.Uninstalled -> {
                         Log.i(TAG, "🗑️ System event: Package uninstalled: ${event.packageName}")
                         pendingUninstallChecks.remove(event.packageName)
+                        handledInstallSuccess.remove(event.packageName)
+                        invalidateMicrogCache()
                         
                         // Check if this was part of a reinstall flow
                         val pendingPath = pendingReinstalls.remove(event.packageName)
@@ -224,28 +249,43 @@ class AppBloc @Inject constructor(
                 when (result) {
                     is InstallationResult.Success -> {
                         Log.i(TAG, "✅ Installation successful: ${result.packageName}")
-                        handleInstallationSuccess(result.packageName, appManager.getInstalledVersion(result.packageName) ?: "Unknown")
+                        recordInstalledBuild(result.packageName)
+                        handleInstallationSuccess(result.packageName, appManager.getInstalledVersionName(result.packageName) ?: "Unknown")
                         // Clean up queue after successful installation
                         Log.i(TAG, "🔄 Installation success - cleaning up queue")
                         processNextInstallation()
                     }
                     
                     is InstallationResult.Failed -> {
-                        Log.i(TAG, "❌ Installation failed: ${result.packageName}, error: ${result.error}")
-                        
-                        // 🔥 Check if user aborted/cancelled installation - don't retry in this case
-                        val isUserAbort = result.error.contains("aborted", ignoreCase = true) || 
-                                         result.error.contains("cancelled", ignoreCase = true) ||
-                                         result.error.contains("user denied", ignoreCase = true) ||
-                                         result.statusCode == android.content.pm.PackageInstaller.STATUS_FAILURE_ABORTED
-                        
-                        if (isUserAbort) {
-                            Log.i(TAG, "🚫 User aborted installation for: ${result.packageName}, not showing retry dialog")
-                            handleInstallationAborted(result.packageName, result.error)
-                        } else {
-                            handleInstallationFailedWithRetry(result.packageName, result.error)
+                        Log.w(TAG, "❌ Installation failed: ${result.packageName}, error: ${result.error} (status=${result.statusCode})")
+                        val reason = com.app.manager.domain.model.InstallFailureReason.from(result.statusCode, result.error)
+
+                        // A silent attempt the ROM refused gets exactly one retry with the system
+                        // confirmation dialog, inside this queue turn — the next queued install
+                        // must not start alongside it, and the APK on disk is still good so
+                        // nothing is re-downloaded (#63).
+                        val pendingPath = installationQueue.find { it.packageName == result.packageName }?.filePath
+                        if (result.silentInstallRefused && pendingPath != null &&
+                            silentInstallRetried.add(result.packageName)
+                        ) {
+                            Log.i(TAG, "ROM refused silent install of ${result.packageName} — retrying with system confirmation")
+                            installAppDirect(result.packageName, pendingPath, requireUserAction = true)
+                            return@onEach  // stay in the same queue turn
                         }
-                        
+
+                        when (reason) {
+                            com.app.manager.domain.model.InstallFailureReason.ABORTED -> {
+                                Log.i(TAG, "🚫 Installation aborted for: ${result.packageName}, not showing retry dialog")
+                                handleInstallationAborted(result.packageName, result.error)
+                            }
+                            // Uninstall-and-retry only makes sense when the old build blocks the
+                            // install (signature clash, downgrade) — its dialog offers that.
+                            com.app.manager.domain.model.InstallFailureReason.SIGNATURE_CONFLICT,
+                            com.app.manager.domain.model.InstallFailureReason.VERSION_DOWNGRADE ->
+                                handleInstallationFailedWithRetry(result.packageName, result.error)
+                            else -> handleInstallationFailureClassified(result.packageName, result.error, reason)
+                        }
+
                         // Clean up queue after failed installation
                         Log.i(TAG, "🔄 Installation failed - cleaning up queue")
                         processNextInstallation()
@@ -316,6 +356,8 @@ class AppBloc @Inject constructor(
         
         // Reset background flag
         wasAppBackgrounded = false
+
+        maybeShowUpdatePrompt()
     }
     
     /**
@@ -657,7 +699,18 @@ class AppBloc @Inject constructor(
             is AppEvent.UpdateSingleApp -> updateSingleApp(event.app)
             is AppEvent.DownloadApp -> downloadApp(event.packageName, event.downloadUrl)
             is AppEvent.InstallApp -> installApp(event.packageName, event.apkFilePath)
-            is AppEvent.UninstallApp -> uninstallApp(event.packageName)
+            is AppEvent.UninstallApp -> {
+                if (shouldWarnBeforeUninstall(event.packageName)) {
+                    showMicrogUninstallWarning(event.packageName)
+                } else {
+                    uninstallApp(event.packageName)
+                }
+            }
+            is AppEvent.ConfirmUninstallMicroG -> uninstallApp(event.packageName)
+            is AppEvent.ConfirmMicroGSuggestion -> {
+                handleEvent(AppEvent.DismissDialog)
+                event.apps.forEach { app -> downloadApp(app.packageName, app.downloadUrl) }
+            }
             is AppEvent.ShowReinstallConfirmation -> showReinstallConfirmation(event.packageName)
             is AppEvent.ReinstallApp -> reinstallApp(event.packageName)
             is AppEvent.OpenApp -> openApp(event.packageName)
@@ -677,7 +730,6 @@ class AppBloc @Inject constructor(
             is AppEvent.DownloadFailed -> handleDownloadFailed(event.packageName, event.error)
             is AppEvent.InstallationCompleted -> handleInstallationCompleted(event.packageName, event.success)
             is AppEvent.ShowConfirmationDialog -> showConfirmationDialog(event.title, event.message, event.onConfirm, event.onCancel)
-            is AppEvent.ShowConfigDialog -> showConfigDialog()
             is AppEvent.ShowLogsDialog -> showLogsDialog()
             is AppEvent.ClearLogs -> clearLogs()
             is AppEvent.SaveConfiguration -> saveConfiguration(event.config)
@@ -702,6 +754,17 @@ class AppBloc @Inject constructor(
 
             // Filter events
             is AppEvent.SetFilter -> setFilter(event.filter)
+            is AppEvent.SetSort -> setSort(event.sort)
+            is AppEvent.UpdateAll -> updateAll()
+            is AppEvent.InstallSelectedUpdates -> {
+                handleEvent(AppEvent.DismissDialog)
+                event.apps.forEach { app -> downloadApp(app.packageName, app.downloadUrl) }
+            }
+            is AppEvent.SkipUpdatePromptToday -> {
+                preferencesManager.setUpdatePromptSnoozedDate(java.time.LocalDate.now().toString())
+                handleEvent(AppEvent.DismissDialog)
+            }
+            is AppEvent.TurnOffUpdatePrompt -> turnOffUpdatePrompt()
         }
     }
     
@@ -729,11 +792,29 @@ class AppBloc @Inject constructor(
      * Set the active filter option
      */
     private fun setFilter(filter: AppFilterOption) {
+        preferencesManager.setFilterOption(filter.name)
         val currentState = _state.value
         if (currentState is AppState.Success) {
             _state.value = currentState.copy(filterOption = filter)
         }
     }
+
+    private fun setSort(sort: AppSortOption) {
+        preferencesManager.setSortOption(sort.name)
+        val currentState = _state.value
+        if (currentState is AppState.Success) {
+            _state.value = currentState.copy(sortOption = sort)
+        }
+    }
+
+    /** Restore the persisted list filter — PROCESSING-style transient filters stay un-restored. */
+    private fun restoreFilterOption(): AppFilterOption =
+        AppFilterOption.entries.find { it.name == preferencesManager.getFilterOption() }
+            ?: AppFilterOption.ALL
+
+    private fun restoreSortOption(): AppSortOption =
+        AppSortOption.entries.find { it.name == preferencesManager.getSortOption() }
+            ?: AppSortOption.CATALOG
 
     /**
      * Load apps from cache first for fast UI, then trigger background refresh
@@ -760,7 +841,13 @@ class AppBloc @Inject constructor(
                                 Log.w(TAG, "Failed to load config, using fallback", e)
                                 AppConfig(ThemeMode.DARK, Language.VIETNAMESE)
                             }
-                            _state.value = AppState.Success(storeAndFilter(result.data, config), config = config, favorites = favoriteSet)
+                            _state.value = AppState.Success(
+                                storeAndFilter(result.data, config),
+                                filterOption = restoreFilterOption(),
+                                sortOption = restoreSortOption(),
+                                config = config,
+                                favorites = favoriteSet
+                            )
                             
                             // Start background refresh after a short delay to let UI render
                             viewModelScope.launch {
@@ -818,7 +905,13 @@ class AppBloc @Inject constructor(
                                         AppConfig(ThemeMode.DARK, Language.VIETNAMESE)
                                     }
                                     
-                                    _state.value = AppState.Success(storeAndFilter(newApps, config), config = config, favorites = favoriteSet)
+                                    _state.value = AppState.Success(
+                                    storeAndFilter(newApps, config),
+                                    filterOption = restoreFilterOption(),
+                                    sortOption = restoreSortOption(),
+                                    config = config,
+                                    favorites = favoriteSet
+                                )
                                     
                                     // Show a subtle toast if there are significant updates
                                     if (updatedApps.size > 1) {
@@ -827,6 +920,10 @@ class AppBloc @Inject constructor(
                                 } else {
                                     Log.d(TAG, "No app updates found during background refresh")
                                 }
+
+                                // The network-backed load finished — now the prompt may list the
+                                // builds actually published (cache-only launch loads are excluded).
+                                maybeShowUpdatePrompt()
                             } else {
                                 Log.w(TAG, "Background refresh completed but current state is not Success")
                             }
@@ -886,7 +983,14 @@ class AppBloc @Inject constructor(
                                 Log.w(TAG, "Failed to load config during app loading, using fallback", e)
                                 AppConfig(ThemeMode.DARK, Language.VIETNAMESE)
                             }
-                            _state.value = AppState.Success(storeAndFilter(result.data, config), config = config, favorites = favoriteSet)
+                            _state.value = AppState.Success(
+                                storeAndFilter(result.data, config),
+                                filterOption = restoreFilterOption(),
+                                sortOption = restoreSortOption(),
+                                config = config,
+                                favorites = favoriteSet
+                            )
+                            maybeSuggestMicroG(result.data)
                         }
                         is Result.Error -> {
                             Log.e(TAG, "Failed to load apps", result.exception)
@@ -923,10 +1027,181 @@ class AppBloc @Inject constructor(
         }
     }
 
+    @Volatile
+    private var microgInstalledCache: Boolean? = null
+
+    /** True when no MicroG build is on the device (result cached between installs). */
+    fun isMicrogMissing(): Boolean {
+        if (microgInstalledCache == null) {
+            microgInstalledCache = appManager.isAppInstalled(MICROG_PACKAGE)
+        }
+        return microgInstalledCache == false
+    }
+
+    private fun invalidateMicrogCache() {
+        microgInstalledCache = null
+    }
+
+    /**
+     * Remember which patches the build this manager just installed carries, so the patch-update
+     * check knows exactly instead of going by install time (see PatchUpdate). Only from our own
+     * PackageInstaller result — a PACKAGE_ADDED broadcast can be anyone's install. The record is
+     * written only when the installed version is the owner entry's build, so a catalog that moved
+     * to a new app version records nothing rather than a wrong pair.
+     */
+    private fun recordInstalledBuild(packageName: String) {
+        val versionName = appManager.getInstalledVersionName(packageName) ?: return
+        val lastUpdateTime = appManager.getInstalledLastUpdateTime(packageName) ?: 0L
+        val app = (_state.value as? AppState.Success)?.apps?.find { it.packageName == packageName } ?: return
+        val patchVersion = app.patchVersion ?: return
+        if (VersionComparator.compare(versionName, app.latestVersionName) != 0) return
+        installedBuildStore.put(
+            packageName,
+            com.app.manager.core.common.InstalledBuildRecord(
+                versionName = versionName,
+                patchVersion = patchVersion,
+                lastUpdateTime = lastUpdateTime
+            )
+        )
+        Log.i(TAG, "Recorded installed build for $packageName: v$versionName patches $patchVersion")
+    }
+
+    /**
+     * Offer to install MicroG on first run when catalog apps need it and none is on the device
+     * (upstream SuggestionsDialog). Offered once per installation — dismissed forever after.
+     */
+    private fun maybeSuggestMicroG(apps: List<RevancedApp>) {
+        if (preferencesManager.isMicrogSuggestionShown()) return
+        if (!apps.any { it.requiresMicroG }) return
+        if (appManager.isAppInstalled(MICROG_PACKAGE)) return
+
+        val microgEntries = apps.filter { it.packageName == MICROG_PACKAGE }
+        if (microgEntries.isEmpty()) return
+
+        preferencesManager.setMicrogSuggestionShown()
+        Log.i(TAG, "MicroG missing but catalog apps need it — showing suggestion dialog")
+
+        val currentState = _state.value
+        if (currentState is AppState.Success) {
+            _state.value = currentState.copy(
+                dialogState = DialogState.Suggestions(
+                    apps = microgEntries,
+                    onConfirm = { selected -> handleEvent(AppEvent.ConfirmMicroGSuggestion(selected)) },
+                    onDismiss = { handleEvent(AppEvent.DismissDialog) }
+                )
+            )
+        }
+    }
+
+    /**
+     * Download (then sequentially install) every app that currently has an update available —
+     * the "Update all" banner action. Downloads run in parallel; the install queue keeps the
+     * system dialogs strictly one at a time.
+     */
+    private fun updateAll() {
+        val currentState = _state.value
+        val updatable = (currentState as? AppState.Success)
+            ?.apps?.filter { it.status == AppStatus.UPDATE_AVAILABLE }
+            .orEmpty()
+        if (updatable.isEmpty()) return
+
+        Log.i(TAG, "Update all: starting ${updatable.size} download(s)")
+        showToast(
+            stringProvider.getString(R.string.updating_count, updatable.size)
+        )
+        updatable.forEach { app -> downloadApp(app.packageName, app.downloadUrl) }
+    }
+
+    /**
+     * Show the "N updates available" prompt at most once per session, unless it was snoozed for
+     * today, disabled in settings, or another popup is on screen. Only after a network-backed
+     * catalog load: the launch-time cache read may predate the published builds.
+     */
+    private fun maybeShowUpdatePrompt() {
+        if (updatePromptShownThisSession) return
+        val currentState = _state.value
+        if (currentState !is AppState.Success) return
+        if (!currentState.config.showUpdatePrompt) return
+        if (currentState.dialogState != null) return
+
+        val updatable = currentState.apps.filter { it.status == AppStatus.UPDATE_AVAILABLE }
+        if (updatable.isEmpty()) return
+
+        val today = java.time.LocalDate.now().toString()
+        if (preferencesManager.getUpdatePromptSnoozedDate() == today) return
+
+        Log.i(TAG, "Showing update prompt: ${updatable.size} update(s) available")
+        updatePromptShownThisSession = true
+        _state.value = currentState.copy(
+            dialogState = DialogState.UpdatePrompt(
+                apps = updatable,
+                onInstallSelected = { selected -> handleEvent(AppEvent.InstallSelectedUpdates(selected)) },
+                onSkipToday = { handleEvent(AppEvent.SkipUpdatePromptToday) },
+                onTurnOff = { handleEvent(AppEvent.TurnOffUpdatePrompt) },
+                onDismiss = { handleEvent(AppEvent.DismissDialog) }
+            )
+        )
+    }
+
+    /**
+     * "Don't show again" inside the prompt: flip the launch-popup setting off so the user who
+     * never wants to be asked does not have to find it in Settings. Card statuses and the daily
+     * notification are untouched.
+     */
+    private fun turnOffUpdatePrompt() {
+        val config = runCatching { preferencesManager.getAppConfig() }
+            .getOrElse { AppConfig(ThemeMode.DARK, Language.VIETNAMESE) }
+            .copy(showUpdatePrompt = false)
+        preferencesManager.saveAppConfig(config)
+        when (val s = _state.value) {
+            is AppState.Success -> _state.value = s.copy(config = config, dialogState = null)
+            is AppState.Error -> _state.value = s.copy(config = config)
+            else -> Unit
+        }
+        showToast(stringProvider.getString(R.string.update_prompt_turned_off))
+    }
+
+    /**
+     * Warn before uninstalling MicroG while catalog apps that need it are still installed.
+     * @return true when the uninstall may proceed straight away.
+     */
+    private fun shouldWarnBeforeUninstall(packageName: String): Boolean {
+        if (packageName != MICROG_PACKAGE) return false
+        val currentState = _state.value
+        val dependentInstalled = (currentState as? AppState.Success)?.apps?.any { app ->
+            app.requiresMicroG && appManager.isAppInstalled(app.packageName)
+        } == true
+        return dependentInstalled
+    }
+
     /**
      * Download an app using modern WorkManager-based system
      */
     private fun downloadApp(packageName: String, downloadUrl: String) {
+        // A download that we cannot install afterwards only wastes storage and bandwidth: gate
+        // on the "Install unknown apps" permission before starting (upstream 15fe35e).
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+            !context.packageManager.canRequestPackageInstalls()
+        ) {
+            Log.w(TAG, "Install-unknown-apps permission missing — download blocked for $packageName")
+            showToast(stringProvider.getString(R.string.install_permission_missing))
+            return
+        }
+
+        // Reuse an already-present APK instead of downloading it again (fixes #22): the file
+        // from a previous session or download goes straight into the install queue.
+        getDownloadPath(packageName)?.let { existingPath ->
+            Log.i(TAG, "APK already present for $packageName at $existingPath — skipping download")
+            val currentState = _state.value
+            val appName = (currentState as? AppState.Success)
+                ?.apps?.find { it.packageName == packageName }?.title ?: packageName
+            updateAppStatus(packageName, AppStatus.DOWNLOADING)
+            updateAppProgress(packageName, 1f)
+            queueInstallation(packageName, existingPath, appName)
+            showToast(stringProvider.getString(R.string.download_completed_installing))
+            return
+        }
+
         activeDownloadUrls[packageName] = downloadUrl
         Log.i(TAG, "Starting download: $packageName")
         Log.d(TAG, "Download URL: $downloadUrl")
@@ -1100,13 +1375,44 @@ class AppBloc @Inject constructor(
     }
     
     /**
-     * Install an app directly using PackageInstaller API (used by queue)
+     * Install an app directly using PackageInstaller API (used by queue).
+     *
+     * @param requireUserAction force the system confirmation dialog — the one retry after the ROM
+     *   refused a silent install (issue #63).
      */
-    private fun installAppDirect(packageName: String, apkFilePath: String) {
-        Log.i(TAG, "🚀 Installing app directly: $packageName from $apkFilePath")
+    private fun installAppDirect(packageName: String, apkFilePath: String, requireUserAction: Boolean = false) {
+        Log.i(TAG, "🚀 Installing app directly: $packageName from $apkFilePath (requireUserAction=$requireUserAction)")
         viewModelScope.launch {
             try {
-                val result = useCases.installAppUseCase(packageName, apkFilePath)
+                // When the catalog publishes a signing fingerprint for this build (e.g. the
+                // MicroG RE releases), verify the downloaded APK against it before committing an
+                // install session — a mismatch means this is not the publisher's build.
+                val expectedSha = (_state.value as? AppState.Success)
+                    ?.apps?.find { it.packageName == packageName }?.signingSha256
+                if (expectedSha != null) {
+                    val signatureOk = withContext(Dispatchers.IO) {
+                        ApkSignatureVerifier.matches(apkFilePath, expectedSha, context.packageManager)
+                    }
+                    if (!signatureOk) {
+                        Log.e(TAG, "Signature mismatch for $packageName — expected $expectedSha")
+                        installationQueue.removeAll { it.packageName == packageName }
+                        installationRetries.remove(packageName)
+                        updateAppStatus(packageName, resolveActualStatus(packageName))
+                        val appName = (_state.value as? AppState.Success)
+                            ?.apps?.find { it.packageName == packageName }?.title ?: packageName
+                        showError(
+                            stringProvider.getString(
+                                R.string.install_failed_signature_mismatch_message,
+                                appName,
+                                expectedSha
+                            )
+                        )
+                        return@launch
+                    }
+                    Log.i(TAG, "Signature verified for $packageName against published fingerprint")
+                }
+
+                val result = useCases.installAppUseCase(packageName, apkFilePath, requireUserAction)
                 when (result) {
                     is Result.Success -> {
                         if (result.data) {
@@ -1146,7 +1452,7 @@ class AppBloc @Inject constructor(
             app?.let {
                 val isInstalled = appManager.isAppInstalled(packageName)
                 val newStatus = if (isInstalled) {
-                    val installedVersion = appManager.getInstalledVersion(packageName)
+                    val installedVersion = appManager.getInstalledVersionName(packageName)
                     if (installedVersion != null) {
                         when (compareVersions(installedVersion, app.latestVersionName)) {
                             0 -> AppStatus.UP_TO_DATE
@@ -1196,9 +1502,53 @@ class AppBloc @Inject constructor(
     }
 
     /**
+     * Route an install failure whose cause removing the old version cannot fix (no space, wrong
+     * ABI, damaged APK, blocked by the system) — uninstall-and-retry would fail for the same
+     * reason, so the user gets an explanation instead (upstream handleInstallationFailure).
+     */
+    private fun handleInstallationFailureClassified(
+        packageName: String,
+        error: String,
+        reason: com.app.manager.domain.model.InstallFailureReason
+    ) {
+        Log.w(TAG, "Installation failed for $packageName: $reason — $error")
+        installationRetries.remove(packageName)
+        installationQueue.removeAll { it.packageName == packageName }
+        updateAppStatus(packageName, resolveActualStatus(packageName))
+        viewModelScope.launch {
+            runCatching { downloadStateRepository.removeDownloadState(packageName) }
+        }
+
+        val currentState = _state.value
+        val appName = (currentState as? AppState.Success)
+            ?.apps?.find { it.packageName == packageName }?.title ?: packageName
+        val message = when (reason) {
+            com.app.manager.domain.model.InstallFailureReason.STORAGE_FULL ->
+                stringProvider.getString(R.string.install_failed_storage_message, appName)
+            com.app.manager.domain.model.InstallFailureReason.INCOMPATIBLE ->
+                stringProvider.getString(R.string.install_failed_incompatible_message, appName)
+            com.app.manager.domain.model.InstallFailureReason.INVALID_APK ->
+                stringProvider.getString(R.string.install_failed_invalid_message, appName)
+            com.app.manager.domain.model.InstallFailureReason.BLOCKED ->
+                stringProvider.getString(R.string.install_failed_blocked_message, appName)
+            else ->
+                stringProvider.getString(R.string.install_failed_generic_message, appName, error)
+        }
+        showError(message)
+    }
+
+    /**
      * Handle successful installation
      */
     private fun handleInstallationSuccess(packageName: String, installedVersion: String) {
+        // Success arrives from both the PackageInstaller result and the system PACKAGE_ADDED
+        // broadcast — settle the first delivery only.
+        if (handledInstallSuccess[packageName] == installedVersion) {
+            Log.d(TAG, "Install success already handled for $packageName v$installedVersion")
+            return
+        }
+        handledInstallSuccess[packageName] = installedVersion
+        invalidateMicrogCache()
         val currentState = _state.value
         if (currentState is AppState.Success) {
             val app = currentState.apps.find { it.packageName == packageName }
@@ -1299,7 +1649,7 @@ class AppBloc @Inject constructor(
                     // Normal status update for non-processing apps
                     val isInstalled = appManager.isAppInstalled(packageName)
                     val installedVersion = if (isInstalled) {
-                        appManager.getInstalledVersion(packageName)
+                        appManager.getInstalledVersionName(packageName)
                     } else {
                         null
                     }
@@ -1386,7 +1736,7 @@ class AppBloc @Inject constructor(
             app?.let {
                 val isInstalled = appManager.isAppInstalled(packageName)
                 val newStatus = if (isInstalled) {
-                    val installedVersion = appManager.getInstalledVersion(packageName)
+                    val installedVersion = appManager.getInstalledVersionName(packageName)
                     if (installedVersion != null) {
                         when (compareVersions(installedVersion, app.latestVersionName)) {
                             0 -> AppStatus.UP_TO_DATE
@@ -1586,6 +1936,22 @@ class AppBloc @Inject constructor(
                 updateSingleAppStatus(packageName)
             }
         }
+    }
+
+    /**
+     * Show confirmation dialog before reinstalling an app
+     */
+    private fun showMicrogUninstallWarning(packageName: String) {
+        val title = stringProvider.getString(R.string.microg_uninstall_warning_title)
+        val message = stringProvider.getString(R.string.microg_uninstall_warning_message)
+        handleEvent(
+            AppEvent.ShowConfirmationDialog(
+                title = title,
+                message = message,
+                onConfirm = AppEvent.ConfirmUninstallMicroG(packageName),
+                onCancel = AppEvent.DismissDialog
+            )
+        )
     }
 
     /**
@@ -1819,12 +2185,19 @@ class AppBloc @Inject constructor(
             is AppEvent.DownloadApp -> "DownloadApp ${event.packageName}"
             is AppEvent.InstallApp -> "InstallApp ${event.packageName}"
             is AppEvent.UninstallApp -> "UninstallApp ${event.packageName}"
+            is AppEvent.ConfirmUninstallMicroG -> "ConfirmUninstallMicroG ${event.packageName}"
+            is AppEvent.ConfirmMicroGSuggestion -> "ConfirmMicroGSuggestion ${event.apps.size} apps"
             is AppEvent.ShowReinstallConfirmation -> "ShowReinstallConfirmation ${event.packageName}"
             is AppEvent.ReinstallApp -> "ReinstallApp ${event.packageName}"
             is AppEvent.OpenApp -> "OpenApp ${event.packageName}"
             is AppEvent.SearchApps -> "SearchApps '${event.query}'"
             AppEvent.ClearSearch -> "ClearSearch"
             is AppEvent.SetFilter -> "SetFilter ${event.filter}"
+            is AppEvent.SetSort -> "SetSort ${event.sort}"
+            AppEvent.UpdateAll -> "UpdateAll"
+            is AppEvent.InstallSelectedUpdates -> "InstallSelectedUpdates ${event.apps.size} apps"
+            AppEvent.SkipUpdatePromptToday -> "SkipUpdatePromptToday"
+            AppEvent.TurnOffUpdatePrompt -> "TurnOffUpdatePrompt"
             is AppEvent.SaveConfiguration -> "SaveConfiguration theme=${event.config.themeMode}, language=${event.config.language.code}, compact=${event.config.compactMode}, debug=${event.config.debugLogging}, path=${event.config.downloadPath}"
             is AppEvent.UpdateCompactMode -> "UpdateCompactMode ${event.enabled}"
             AppEvent.LoadConfiguration -> "LoadConfiguration"
@@ -1841,7 +2214,6 @@ class AppBloc @Inject constructor(
             is AppEvent.DownloadFailed -> "DownloadFailed ${event.packageName}"
             is AppEvent.InstallationCompleted -> "InstallationCompleted ${event.packageName} success=${event.success}"
             is AppEvent.AutoInstallAllCompleted -> "AutoInstallAllCompleted success=${event.completedPackages.size} failed=${event.failedPackages.size}"
-            AppEvent.ShowConfigDialog -> "ShowConfigDialog"
             AppEvent.ShowLogsDialog -> "ShowLogsDialog"
             is AppEvent.SelectVendor -> "SelectVendor ${event.vendor}"
             is AppEvent.ToggleShowBeta -> "ToggleShowBeta ${event.enabled}"
@@ -1855,6 +2227,15 @@ class AppBloc @Inject constructor(
     private fun addActionLog(level: String, message: String) {
         if (!isDebugLoggingEnabled && level != "ERROR") {
             return
+        }
+        // On the first entry of a logging day, write a session header so a saved log names the
+        // app version, device, ROM and ABIs it came from (upstream session header).
+        val today = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+        if (today != currentLogDay) {
+            currentLogDay = today
+            sessionHeaderLines().forEach { headerLine ->
+                actionLogs.add(AppLogEntry(today, "INFO", headerLine))
+            }
         }
         val timestamp = synchronized(logTimestampFormat) {
             logTimestampFormat.format(Date())
@@ -1890,6 +2271,30 @@ class AppBloc @Inject constructor(
             }
             is AppState.Loading -> Unit
         }
+    }
+
+    /** Device/app facts a debug log should start with (upstream session header). */
+    private fun sessionHeaderLines(): List<String> {
+        val packageInfo = runCatching {
+            context.packageManager.getPackageInfo(context.packageName, 0)
+        }.getOrNull()
+        val versionName = packageInfo?.versionName ?: "?"
+        val versionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            packageInfo?.longVersionCode?.toString() ?: "?"
+        } else {
+            @Suppress("DEPRECATION")
+            packageInfo?.versionCode?.toString() ?: "?"
+        }
+        val debuggable = (context.applicationInfo.flags and
+            android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+        val today = logDayFormat.format(Date())
+        return listOf(
+            "===== SESSION $today =====",
+            "app=$versionName ($versionCode) debuggable=$debuggable",
+            "device=${Build.MANUFACTURER} ${Build.MODEL} / Android ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT})",
+            "rom=${Build.DISPLAY}",
+            "abis=${Build.SUPPORTED_ABIS.joinToString(",")} locale=${Locale.getDefault()}"
+        )
     }
 
     private fun getCurrentLogs(): List<AppLogEntry> =
@@ -1954,7 +2359,7 @@ class AppBloc @Inject constructor(
      */
     private fun resolveActualStatus(packageName: String): AppStatus {
         if (!appManager.isAppInstalled(packageName)) return AppStatus.NOT_INSTALLED
-        val installedVersion = appManager.getInstalledVersion(packageName) ?: return AppStatus.NOT_INSTALLED
+        val installedVersion = appManager.getInstalledVersionName(packageName) ?: return AppStatus.NOT_INSTALLED
         val latestVersion = (_state.value as? AppState.Success)
             ?.apps?.find { it.packageName == packageName }?.latestVersionName ?: return AppStatus.UP_TO_DATE
         return when (compareVersions(installedVersion, latestVersion)) {
@@ -1964,77 +2369,12 @@ class AppBloc @Inject constructor(
     }
 
     /**
-     * Compare version strings
+     * Compare version strings — delegates to [VersionComparator], the single source of truth
+     * shared with GetAppsUseCase (suffix-aware: a prerelease ranks below its own release).
      * @return 1 if version1 > version2, -1 if version1 < version2, 0 if equal
      */
-    private fun compareVersions(version1: String, version2: String): Int {
-        if (version1.isEmpty() || version2.isEmpty()) {
-            return 0
-        }
-        
-        return try {
-            val parts1 = version1.split(".").map { part ->
-                part.takeWhile { it.isDigit() }.ifEmpty { "0" }
-            }
-            val parts2 = version2.split(".").map { part ->
-                part.takeWhile { it.isDigit() }.ifEmpty { "0" }
-            }
-            
-            val length = minOf(parts1.size, parts2.size)
-            
-            for (i in 0 until length) {
-                val num1 = parts1[i].toLongOrNull() ?: 0L
-                val num2 = parts2[i].toLongOrNull() ?: 0L
-                
-                when {
-                    num1 > num2 -> return 1
-                    num1 < num2 -> return -1
-                }
-            }
-            
-            parts1.size.compareTo(parts2.size)
-        } catch (e: Exception) {
-            0
-        }
-    }
-    
-    /**
-     * Show configuration dialog with proper config loading
-     */
-    private fun showConfigDialog() {
-        // Always get the latest config from PreferencesManager to ensure accurate values
-        val config = try {
-            preferencesManager.getAppConfig()
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to load config, using fallback", e)
-            // Fallback to dark theme and English as requested
-            AppConfig(ThemeMode.DARK, Language.VIETNAMESE)
-        }
-        
-        val dialogState = DialogState.Configuration(
-            config = config,
-            onSave = { newConfig -> handleEvent(AppEvent.SaveConfiguration(newConfig)) },
-            onCancel = { handleEvent(AppEvent.DismissDialog) }
-        )
-        
-        val currentState = _state.value
-        when (currentState) {
-            is AppState.Success -> {
-                _state.value = currentState.copy(dialogState = dialogState, config = config)
-            }
-            is AppState.Error -> {
-                _state.value = currentState.copy(dialogState = dialogState, config = config)
-            }
-            is AppState.Loading -> {
-                // For loading state, we can still show the dialog with current config
-                _state.value = AppState.Success(
-                    apps = emptyList(), 
-                    dialogState = dialogState, 
-                    config = config
-                )
-            }
-        }
-    }
+    private fun compareVersions(version1: String, version2: String): Int =
+        VersionComparator.compare(version1, version2)
 
     private fun showLogsDialog() {
         val currentLogs = getCurrentLogs()
@@ -2272,6 +2612,10 @@ class AppBloc @Inject constructor(
             Log.w(TAG, "⚠️ Already in queue, skipping: $packageName")
             return
         }
+
+        // A fresh install starts with a silent attempt again — the one-confirmed-retry budget
+        // is per install, not per process.
+        silentInstallRetried.remove(packageName)
 
         installationQueue.add(PendingInstallation(packageName, filePath, appName))
         Log.i(TAG, "📋 Queue size: ${installationQueue.size}, inProgress: $isInstallationInProgress")

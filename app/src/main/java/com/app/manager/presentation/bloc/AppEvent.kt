@@ -18,6 +18,8 @@ sealed class AppEvent {
     data class DownloadApp(val packageName: String, val downloadUrl: String) : AppEvent()
     data class InstallApp(val packageName: String, val apkFilePath: String) : AppEvent()
     data class UninstallApp(val packageName: String) : AppEvent()
+    /** Proceed with a MicroG uninstall after the dependent-apps warning was confirmed. */
+    data class ConfirmUninstallMicroG(val packageName: String) : AppEvent()
     data class ShowReinstallConfirmation(val packageName: String) : AppEvent()
     data class ReinstallApp(val packageName: String) : AppEvent()
     data class OpenApp(val packageName: String) : AppEvent()
@@ -48,8 +50,9 @@ sealed class AppEvent {
     ) : AppEvent()
     
     // Configuration events
-    data object ShowConfigDialog : AppEvent()
     data object ShowLogsDialog : AppEvent()
+    /** User confirmed the first-run MicroG suggestion; [apps] are the entries to download. */
+    data class ConfirmMicroGSuggestion(val apps: List<com.app.manager.domain.model.RevancedApp>) : AppEvent()
     data object ClearLogs : AppEvent()
     data class SaveConfiguration(val config: AppConfig) : AppEvent()
     data class UpdateCompactMode(val enabled: Boolean) : AppEvent()
@@ -69,4 +72,13 @@ sealed class AppEvent {
 
     // Filter events
     data class SetFilter(val filter: AppFilterOption) : AppEvent()
+    data class SetSort(val sort: AppSortOption) : AppEvent()
+
+    // Update-all & update prompt
+    /** Download (then sequentially install) every app that has an update available. */
+    data object UpdateAll : AppEvent()
+    /** Install the apps ticked in the update prompt. */
+    data class InstallSelectedUpdates(val apps: List<com.app.manager.domain.model.RevancedApp>) : AppEvent()
+    data object SkipUpdatePromptToday : AppEvent()
+    data object TurnOffUpdatePrompt : AppEvent()
 }

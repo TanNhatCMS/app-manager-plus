@@ -13,13 +13,15 @@ sealed class AppState {
         val apps: List<RevancedApp>,
         val searchQuery: String = "",
         val filterOption: AppFilterOption = AppFilterOption.ALL,
+        val sortOption: AppSortOption = AppSortOption.CATALOG,
         val dialogState: DialogState? = null,
         val config: AppConfig = AppConfig(),
         val logs: List<AppLogEntry> = emptyList(),
         val favorites: Set<String> = emptySet()
     ) : AppState() {
         /**
-         * Returns filtered apps based on search query, active filter option, and favorites.
+         * Returns filtered and sorted apps based on search query, active filter option,
+         * favorites and sort option.
          */
         val filteredApps: List<RevancedApp>
             get() {
@@ -27,7 +29,7 @@ sealed class AppState {
                     app.title.contains(searchQuery, ignoreCase = true) ||
                     app.packageName.contains(searchQuery, ignoreCase = true)
                 }
-                return when (filterOption) {
+                val filtered = when (filterOption) {
                     AppFilterOption.ALL -> searched
                     AppFilterOption.INSTALLED -> searched.filter {
                         it.status != AppStatus.NOT_INSTALLED && it.status != AppStatus.UNKNOWN
@@ -41,6 +43,11 @@ sealed class AppState {
                     AppFilterOption.FAVORITES -> searched.filter {
                         it.packageName in favorites
                     }
+                }
+                return when (sortOption) {
+                    AppSortOption.CATALOG -> filtered
+                    AppSortOption.RECENTLY_UPDATED -> filtered.sortedByDescending { it.updatedAt ?: 0L }
+                    AppSortOption.NAME_ASC -> filtered.sortedBy { it.title.lowercase() }
                 }
             }
     }
@@ -74,17 +81,27 @@ sealed class DialogState {
         val message: String,
         val progress: Float? = null
     ) : DialogState()
-    
-    data class Configuration(
-        val config: AppConfig,
-        val onSave: (AppConfig) -> Unit,
-        val onCancel: () -> Unit
-    ) : DialogState()
 
     data class Logs(
         val logs: List<AppLogEntry>,
         val onClear: () -> Unit,
         val onClose: () -> Unit
+    ) : DialogState()
+
+    /** First-run suggestion popup (e.g. install MicroG for apps that need it). */
+    data class Suggestions(
+        val apps: List<RevancedApp>,
+        val onConfirm: (List<RevancedApp>) -> Unit,
+        val onDismiss: () -> Unit
+    ) : DialogState()
+
+    /** "N updates available" prompt shown once per session on launch (respects daily snooze). */
+    data class UpdatePrompt(
+        val apps: List<RevancedApp>,
+        val onInstallSelected: (List<RevancedApp>) -> Unit,
+        val onSkipToday: () -> Unit,
+        val onTurnOff: () -> Unit,
+        val onDismiss: () -> Unit
     ) : DialogState()
 }
 

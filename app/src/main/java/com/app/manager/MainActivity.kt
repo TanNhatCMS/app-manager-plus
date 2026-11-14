@@ -41,7 +41,7 @@ import android.provider.Settings
 import com.app.manager.core.common.LocaleHelper
 import com.app.manager.data.local.preferences.PreferencesManager
 import com.app.manager.presentation.bloc.AppBloc
-import com.app.manager.presentation.ui.screen.MainScreen
+import com.app.manager.presentation.navigation.AppNavHost
 import com.app.manager.presentation.ui.theme.RevancedManagerTheme
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -120,7 +120,7 @@ class MainActivity : ComponentActivity() {
                             onRefresh = { refreshPermissionState() }
                         )
                     } else {
-                        MainScreen()
+                        AppNavHost(viewModel)
                     }
                 }
             }

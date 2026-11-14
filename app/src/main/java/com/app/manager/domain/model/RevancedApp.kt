@@ -20,7 +20,24 @@ data class RevancedApp(
     val vendor: String? = null,       // "morphe" | "revanced" | null (manager/app chung)
     val channel: String? = null,      // "stable" | "beta"
     val variant: String? = null,      // microg variant: "standard" | "hw"
-    val variantLabel: String? = null  // nhãn hiển thị cho variant
+    val variantLabel: String? = null, // nhãn hiển thị cho variant
+    /** Epoch millis the catalog build was published — drives the "Recent" sort and the
+     *  patch-only update check. Null when the catalog does not publish a date. */
+    val updatedAt: Long? = null,
+    /** Patches version of this catalog build (e.g. "1.40.0"), when the provider publishes one. */
+    val patchVersion: String? = null,
+    /** True when this entry's update is patches-only (same app versionName, newer patches). */
+    val isPatchUpdate: Boolean = false,
+    /** Non-null when the entry tracks a GitHub repository's Latest/Pre-release build
+     *  (`"source": "github-releases"` in the catalog); the repository resolves it at load time. */
+    val githubRepo: String? = null,
+    /** For [githubRepo] entries: track the newest pre-release instead of the newest stable. */
+    val githubPrerelease: Boolean = false,
+    /** For [githubRepo] entries: prefer the launcher-icon-hidden variant of the build. */
+    val githubAssetNoicon: Boolean = false,
+    /** Expected SHA-256 fingerprint of the build's signing certificate (colon-separated hex).
+     *  Non-null → the downloaded APK is verified against it before installing. */
+    val signingSha256: String? = null
 )
 
 /**

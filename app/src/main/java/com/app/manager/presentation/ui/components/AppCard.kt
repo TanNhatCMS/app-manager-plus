@@ -50,8 +50,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.SubcomposeAsyncImage
-import coil.compose.SubcomposeAsyncImageContent
 import com.app.manager.R
 import com.app.manager.domain.model.AppStatus
 import com.app.manager.domain.model.RevancedApp
@@ -75,12 +73,18 @@ fun AppCard(
     isCompactMode: Boolean = false,
     isFavorite: Boolean = false,
     onFavoriteClick: () -> Unit = {},
+    onCardClick: () -> Unit = {},
+    /** The app needs MicroG and none is installed — offer the one-tap install. */
+    showInstallMicrog: Boolean = false,
+    onInstallMicrogClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 4.dp),
+            .padding(horizontal = 12.dp, vertical = 4.dp)
+            .tvFocusBorder(shape = RoundedCornerShape(8.dp))
+            .clickable(onClick = onCardClick),
         shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
@@ -97,30 +101,14 @@ fun AppCard(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                SubcomposeAsyncImage(
-                    model = app.iconUrl,
-                    contentDescription = "${app.title} icon",
-                    modifier = Modifier.size(48.dp),
-                    contentScale = ContentScale.Crop,
-                    loading = {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(24.dp),
-                            strokeWidth = 2.dp
-                        )
-                    },
-                    error = {
-                        Icon(
-                            imageVector = Icons.Filled.Download,
-                            contentDescription = "App icon placeholder",
-                            modifier = Modifier.size(48.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    },
-                    success = {
-                        SubcomposeAsyncImageContent()
-                    }
+                // Neutral tile while loading, Android glyph on error; plain AsyncImage inside
+                // AppIcon instead of a per-row subcomposition (the slow path Coil warns about).
+                AppIcon(
+                    url = app.iconUrl,
+                    size = 48.dp,
+                    cornerRadius = 10.dp
                 )
-                
+
                 Spacer(modifier = Modifier.width(8.dp))
                 
                 Column(modifier = Modifier.weight(1f)) {
@@ -136,7 +124,7 @@ fun AppCard(
                         app.currentVersion?.let { currentVersion ->
                             Row {
                                 Text(
-                                    text = stringResource(R.string.installed_version, "").dropLast(1), // Remove placeholder
+                                    text = stringResource(R.string.installed_label),
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                                 )
@@ -152,7 +140,7 @@ fun AppCard(
                         }
                         Row {
                             Text(
-                                text = stringResource(R.string.latest_version, "").dropLast(1), // Remove placeholder
+                                text = stringResource(R.string.latest_label),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                             )
@@ -285,7 +273,7 @@ fun AppCard(
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "⚠️ Requires MicroG", // Hoặc dùng stringResource
+                        text = stringResource(R.string.requires_microg),
                         style = MaterialTheme.typography.labelSmall,
                         color = Color(0xFFFFA726)
                     )
@@ -299,6 +287,29 @@ fun AppCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(3.dp),
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+            }
+
+            // One-tap fix for apps that need MicroG but have none installed
+            if (showInstallMicrog) {
+                CompactActionButton(
+                    text = stringResource(R.string.install_microg_button),
+                    icon = Icons.Default.Download,
+                    onClick = onInstallMicrogClick,
+                    color = Color(0xFF7E57C2),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+            }
+
+            // Patch-only update: same app version, newer patches — say so, an ordinary
+            // "Update" without a version change looks like a bug.
+            if (app.isPatchUpdate && app.patchVersion != null) {
+                Text(
+                    text = stringResource(R.string.new_patch_badge, app.patchVersion),
+                    style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.primary
                 )
                 Spacer(modifier = Modifier.height(4.dp))
@@ -332,6 +343,15 @@ fun AppCard(
                             icon =  Icons.Default.PlayArrow,
                             onClick = onOpenClick,
                             color = MaterialTheme.colorScheme.openColor,
+                            modifier = Modifier.weight(1f)
+                        )
+                        // Uninstalling a build that has an update pending is a normal choice —
+                        // e.g. freeing space or dropping an app that misbehaves (#15fe35e).
+                        CompactActionButton(
+                            text = stringResource(R.string.uninstall),
+                            icon = Icons.Default.Delete,
+                            onClick = onUninstallClick,
+                            color = MaterialTheme.colorScheme.uninstallColor,
                             modifier = Modifier.weight(1f)
                         )
                     }

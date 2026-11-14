@@ -59,7 +59,11 @@ interface AppRepository {
      * @param apkFilePath Path to the APK file
      * @return Result of installation
      */
-    suspend fun installApp(packageName: String, apkFilePath: String): Result<Boolean>
+    suspend fun installApp(
+        packageName: String,
+        apkFilePath: String,
+        requireUserAction: Boolean = false
+    ): Result<Boolean>
     
     /**
      * Uninstall an app

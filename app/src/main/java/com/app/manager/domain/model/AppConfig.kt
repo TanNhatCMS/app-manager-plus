@@ -10,7 +10,10 @@ data class AppConfig(
     val debugLogging: Boolean = true,
     val downloadPath: String = "",
     val vendor: String? = null,       // "morphe" | "revanced" | null (chưa chọn)
-    val showBeta: Boolean = false     // hiển thị phiên bản thử nghiệm
+    val showBeta: Boolean = false,    // hiển thị phiên bản thử nghiệm
+    val showUpdatePrompt: Boolean = true,   // "N updates available" popup on launch
+    val autoUpdateCheck: Boolean = true,    // daily background update notification
+    val patchUpdatesEnabled: Boolean = true // offer patch-only updates (same app version)
 )
 
 /**

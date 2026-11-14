@@ -77,8 +77,14 @@ import com.app.manager.presentation.bloc.AppFilterOption
 import com.app.manager.presentation.bloc.AppLogEntry
 import com.app.manager.presentation.bloc.AppState
 import com.app.manager.presentation.bloc.DialogState
+import androidx.compose.material3.Surface
+import androidx.compose.ui.text.font.FontWeight
 import com.app.manager.presentation.ui.components.AppCard
-import com.app.manager.presentation.ui.components.ConfigDialog
+import com.app.manager.presentation.ui.components.tvFocusBorder
+import com.app.manager.presentation.ui.components.SuggestionsDialog
+import com.app.manager.presentation.ui.components.UpdatePromptDialog
+import com.app.manager.domain.model.AppStatus
+import com.app.manager.presentation.bloc.AppSortOption
 import kotlinx.coroutines.delay
 
 /**
@@ -88,50 +94,48 @@ import kotlinx.coroutines.delay
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
-    viewModel: AppBloc = hiltViewModel()
+    viewModel: AppBloc = hiltViewModel(),
+    onOpenDetail: (String) -> Unit = {},
+    onOpenSettings: () -> Unit = {}
 ) {
     val state by viewModel.state.collectAsState()
-    val toastMessage by viewModel.toastMessage.collectAsState()
     val context = LocalContext.current
-    
-    // Remember the current toast to cancel it when a new one appears
-    var currentToast by remember { mutableStateOf<Toast?>(null) }
 
-    // Handle toast messages with cancellation of previous toast
-    LaunchedEffect(toastMessage) {
-        toastMessage?.let { message ->
-            // Cancel any existing toast immediately
-            currentToast?.cancel()
-            
-            // Create and show new toast with shorter duration
-            val newToast = Toast.makeText(context, message, Toast.LENGTH_SHORT).apply {
-                duration = Toast.LENGTH_SHORT
+    // "Save as file" for the debug logs dialog — SAF CreateDocument, no storage permission needed.
+    var logsSavePayload by remember { mutableStateOf("") }
+    val logsSaveLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.CreateDocument("text/plain")
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val payload = logsSavePayload
+        runCatching {
+            context.contentResolver.openOutputStream(uri)?.use { out ->
+                out.write(payload.toByteArray())
             }
-            
-            currentToast = newToast
-            newToast.show()
-            
-            // Clear the toast message from ViewModel
-            viewModel.clearToast()
-            
-            // Auto-dismiss the toast after a shorter time (1 second instead of 2)
-            delay(1000)
-            newToast.cancel()
-            currentToast = null
+            Toast.makeText(context, context.getString(R.string.logs_saved), Toast.LENGTH_SHORT).show()
+        }.onFailure {
+            Toast.makeText(context, context.getString(R.string.logs_save_failed), Toast.LENGTH_SHORT).show()
         }
     }
+    fun saveLogsToFile(payload: String) {
+        logsSavePayload = payload
+        val fileName = "revanced-manager-debug-" +
+            java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date()) + ".log"
+        logsSaveLauncher.launch(fileName)
+    }
+
+    // Toasts are shown by the AppNavHost: this screen is not composed while Settings or an app
+    // detail page is on top, so a toast raised there would never appear.
 
     Scaffold(
         floatingActionButton = {
             Row {
                 FloatingActionButton(
-                    onClick = {
-                        viewModel.handleEvent(AppEvent.ShowConfigDialog)
-                    }
+                    onClick = onOpenSettings
                 ) {
                     Icon(
                         imageVector = Icons.Filled.Settings,
-                        contentDescription = "Settings"
+                        contentDescription = stringResource(R.string.settings)
                     )
                 }
                 Spacer(modifier = Modifier.width(16.dp))
@@ -142,7 +146,7 @@ fun MainScreen(
                 ) {
                     Icon(
                         imageVector = Icons.Filled.Code,
-                        contentDescription = "View logs"
+                        contentDescription = stringResource(R.string.view_logs)
                     )
                 }
                 Spacer(modifier = Modifier.width(16.dp))
@@ -153,7 +157,7 @@ fun MainScreen(
                 ) {
                     Icon(
                         imageVector = Icons.Filled.Refresh,
-                        contentDescription = "Refresh apps"
+                        contentDescription = stringResource(R.string.refresh)
                     )
                 }
             }
@@ -180,6 +184,9 @@ fun MainScreen(
                     onEvent = viewModel::handleEvent,
                     isCompactMode = currentState.config.compactMode,
                     favorites = currentState.favorites,
+                    onOpenDetail = onOpenDetail,
+                    sortOption = currentState.sortOption,
+                    isMicrogMissing = viewModel.isMicrogMissing(),
                     modifier = Modifier.padding(paddingValues)
                 )
                 
@@ -214,15 +221,6 @@ fun MainScreen(
                                 progress = dialogState.progress
                             )
                         }
-                        is DialogState.Configuration -> {
-                            ConfigDialog(
-                                config = dialogState.config,
-                                onSave = dialogState.onSave,
-                                onCancel = dialogState.onCancel,
-                                onCompactModeChange = { },
-                                onClearCache = { viewModel.handleEvent(AppEvent.ClearDownloadCache) }
-                            )
-                        }
                         is DialogState.Logs -> {
                             LogsDialog(
                                 logs = dialogState.logs,
@@ -232,7 +230,24 @@ fun MainScreen(
                                     clipboard.setPrimaryClip(ClipData.newPlainText("app-logs", copied))
                                     Toast.makeText(context, context.getString(R.string.logs_copied), Toast.LENGTH_SHORT).show()
                                 },
-                                onClose = dialogState.onClose
+                                onClose = dialogState.onClose,
+                                onSave = { payload -> saveLogsToFile(payload) }
+                            )
+                        }
+                        is DialogState.Suggestions -> {
+                            SuggestionsDialog(
+                                suggestions = dialogState.apps,
+                                onConfirm = dialogState.onConfirm,
+                                onDismiss = dialogState.onDismiss
+                            )
+                        }
+                        is DialogState.UpdatePrompt -> {
+                            UpdatePromptDialog(
+                                updatableApps = dialogState.apps,
+                                onInstallSelected = dialogState.onInstallSelected,
+                                onSkipToday = dialogState.onSkipToday,
+                                onTurnOff = dialogState.onTurnOff,
+                                onDismiss = dialogState.onDismiss
                             )
                         }
                     }
@@ -244,7 +259,7 @@ fun MainScreen(
                     onRetry = { viewModel.handleEvent(AppEvent.RefreshApps) },
                     modifier = Modifier.padding(paddingValues)
                 )
-                
+
                 // Vendor selection on first launch
                 if (currentState.config.vendor == null) {
                     VendorSelectionDialog(
@@ -276,15 +291,6 @@ fun MainScreen(
                                 progress = dialogState.progress
                             )
                         }
-                        is DialogState.Configuration -> {
-                            ConfigDialog(
-                                config = dialogState.config,
-                                onSave = dialogState.onSave,
-                                onCancel = dialogState.onCancel,
-                                onCompactModeChange = { },
-                                onClearCache = { viewModel.handleEvent(AppEvent.ClearDownloadCache) }
-                            )
-                        }
                         is DialogState.Logs -> {
                             LogsDialog(
                                 logs = dialogState.logs,
@@ -294,7 +300,24 @@ fun MainScreen(
                                     clipboard.setPrimaryClip(ClipData.newPlainText("app-logs", copied))
                                     Toast.makeText(context, context.getString(R.string.logs_copied), Toast.LENGTH_SHORT).show()
                                 },
-                                onClose = dialogState.onClose
+                                onClose = dialogState.onClose,
+                                onSave = { payload -> saveLogsToFile(payload) }
+                            )
+                        }
+                        is DialogState.Suggestions -> {
+                            SuggestionsDialog(
+                                suggestions = dialogState.apps,
+                                onConfirm = dialogState.onConfirm,
+                                onDismiss = dialogState.onDismiss
+                            )
+                        }
+                        is DialogState.UpdatePrompt -> {
+                            UpdatePromptDialog(
+                                updatableApps = dialogState.apps,
+                                onInstallSelected = dialogState.onInstallSelected,
+                                onSkipToday = dialogState.onSkipToday,
+                                onTurnOff = dialogState.onTurnOff,
+                                onDismiss = dialogState.onDismiss
                             )
                         }
                     }
@@ -309,7 +332,8 @@ private fun LogsDialog(
     logs: List<AppLogEntry>,
     onClear: () -> Unit,
     onCopy: (String) -> Unit,
-    onClose: () -> Unit
+    onClose: () -> Unit,
+    onSave: (String) -> Unit
 ) {
     val copiedPayload = if (logs.isEmpty()) {
         ""
@@ -352,6 +376,12 @@ private fun LogsDialog(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TextButton(onClick = { onCopy(copiedPayload) }, enabled = copiedPayload.isNotEmpty()) {
                     Text(text = stringResource(R.string.copy_logs))
+                }
+                TextButton(
+                    onClick = { onSave(copiedPayload) },
+                    enabled = copiedPayload.isNotEmpty()
+                ) {
+                    Text(text = stringResource(R.string.save_logs))
                 }
                 TextButton(onClick = onClear) {
                     Text(text = stringResource(R.string.clear_logs))
@@ -512,10 +542,26 @@ private fun AppListScreen(
     onEvent: (AppEvent) -> Unit,
     isCompactMode: Boolean = false,
     favorites: Set<String> = emptySet(),
+    onOpenDetail: (String) -> Unit = {},
+    sortOption: AppSortOption = AppSortOption.CATALOG,
+    isMicrogMissing: Boolean = false,
     modifier: Modifier = Modifier
 ) {
 
     val context = LocalContext.current
+    val updatableCount = apps.count { it.status == AppStatus.UPDATE_AVAILABLE }
+    val microgEntry = remember(apps) { apps.firstOrNull { it.packageName == AppBloc.MICROG_PACKAGE } }
+    val filterCounts = remember(apps, favorites) {
+        mapOf(
+            AppFilterOption.ALL to apps.size,
+            AppFilterOption.INSTALLED to apps.count {
+                it.status != AppStatus.NOT_INSTALLED && it.status != AppStatus.UNKNOWN
+            },
+            AppFilterOption.NOT_INSTALLED to apps.count { it.status == AppStatus.NOT_INSTALLED },
+            AppFilterOption.UPDATES_AVAILABLE to updatableCount,
+            AppFilterOption.FAVORITES to apps.count { it.packageName in favorites }
+        )
+    }
 
     LazyColumn(
         modifier = modifier.fillMaxSize()
@@ -531,15 +577,30 @@ private fun AppListScreen(
                 textAlign = TextAlign.Center
             )
         }
-        
+
+        // "Update all" banner — one tap takes every available update; per-app prompts are not
+        // shown on Android 12+ because the installer dialog already confirms each install.
+        if (updatableCount > 0) {
+            item {
+                UpdateAllBanner(
+                    count = updatableCount,
+                    onUpdateAll = { onEvent(AppEvent.UpdateAll) },
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                )
+            }
+        }
+
         // Search + filter bar
         item {
             SearchAndFilterBar(
                 query = searchQuery,
                 filterOption = filterOption,
+                sortOption = sortOption,
+                filterCounts = filterCounts,
                 onQueryChange = onSearchQueryChange,
                 onClear = onClearSearch,
                 onFilterChange = onFilterChange,
+                onSortChange = { onEvent(AppEvent.SetSort(it)) },
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
             )
         }
@@ -576,6 +637,7 @@ private fun AppListScreen(
         ) { _, app ->
             AppCard(
                 app = app,
+                onCardClick = { onOpenDetail(app.packageName) },
                 onDownloadClick = {
                     onEvent(AppEvent.DownloadApp(app.packageName, app.downloadUrl))
                 },
@@ -593,7 +655,13 @@ private fun AppListScreen(
                 },
                 isCompactMode = isCompactMode,
                 isFavorite = app.packageName in favorites,
-                onFavoriteClick = { onEvent(AppEvent.ToggleFavorite(app.packageName)) }
+                onFavoriteClick = { onEvent(AppEvent.ToggleFavorite(app.packageName)) },
+                showInstallMicrog = app.requiresMicroG && microgEntry != null && isMicrogMissing,
+                onInstallMicrogClick = {
+                    microgEntry?.let {
+                        onEvent(AppEvent.DownloadApp(it.packageName, it.downloadUrl))
+                    }
+                }
             )
         }
 
@@ -725,6 +793,9 @@ private fun SearchAndFilterBar(
     onQueryChange: (String) -> Unit,
     onClear: () -> Unit,
     onFilterChange: (AppFilterOption) -> Unit,
+    sortOption: AppSortOption = AppSortOption.CATALOG,
+    filterCounts: Map<AppFilterOption, Int> = emptyMap(),
+    onSortChange: (AppSortOption) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var filterExpanded by remember { mutableStateOf(filterOption != AppFilterOption.ALL) }
@@ -760,7 +831,7 @@ private fun SearchAndFilterBar(
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Filled.Search,
-                        contentDescription = "Search",
+                        contentDescription = stringResource(R.string.search_apps),
                         modifier = Modifier.size(18.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -773,7 +844,7 @@ private fun SearchAndFilterBar(
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.Clear,
-                                contentDescription = "Clear search",
+                                contentDescription = stringResource(R.string.clear_search),
                                 modifier = Modifier.size(16.dp),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -834,52 +905,61 @@ private fun SearchAndFilterBar(
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                FilterChip(
-                    selected = filterOption == AppFilterOption.ALL,
-                    onClick = { onFilterChange(AppFilterOption.ALL) },
-                    label = {
-                        Text(
-                            text = stringResource(R.string.filter_all),
-                            style = MaterialTheme.typography.labelSmall
-                        )
-                    }
+                val filterChips = listOf(
+                    AppFilterOption.ALL to stringResource(R.string.filter_all),
+                    AppFilterOption.INSTALLED to stringResource(R.string.filter_installed),
+                    AppFilterOption.NOT_INSTALLED to stringResource(R.string.filter_not_installed),
+                    AppFilterOption.UPDATES_AVAILABLE to stringResource(R.string.filter_updates),
+                    AppFilterOption.FAVORITES to stringResource(R.string.filter_favorites)
                 )
+                filterChips.forEach { (option, label) ->
+                    FilterChip(
+                        selected = filterOption == option,
+                        onClick = { onFilterChange(option) },
+                        label = {
+                            // Count badge per filter chip — at a glance without switching.
+                            BadgedBox(
+                                badge = {
+                                    filterCounts[option]?.takeIf { it > 0 }?.let { count ->
+                                        Badge(containerColor = MaterialTheme.colorScheme.primary) {
+                                            Text(
+                                                text = count.toString(),
+                                                style = MaterialTheme.typography.labelSmall
+                                            )
+                                        }
+                                    }
+                                }
+                            ) {
+                                Text(
+                                    text = label,
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                            }
+                        }
+                    )
+                }
+
+                // Sort chip — cycles catalog order → recently updated → name.
                 FilterChip(
-                    selected = filterOption == AppFilterOption.INSTALLED,
-                    onClick = { onFilterChange(AppFilterOption.INSTALLED) },
-                    label = {
-                        Text(
-                            text = stringResource(R.string.filter_installed),
-                            style = MaterialTheme.typography.labelSmall
+                    selected = sortOption != AppSortOption.CATALOG,
+                    onClick = {
+                        onSortChange(
+                            when (sortOption) {
+                                AppSortOption.CATALOG -> AppSortOption.RECENTLY_UPDATED
+                                AppSortOption.RECENTLY_UPDATED -> AppSortOption.NAME_ASC
+                                AppSortOption.NAME_ASC -> AppSortOption.CATALOG
+                            }
                         )
-                    }
-                )
-                FilterChip(
-                    selected = filterOption == AppFilterOption.NOT_INSTALLED,
-                    onClick = { onFilterChange(AppFilterOption.NOT_INSTALLED) },
+                    },
                     label = {
                         Text(
-                            text = stringResource(R.string.filter_not_installed),
-                            style = MaterialTheme.typography.labelSmall
-                        )
-                    }
-                )
-                FilterChip(
-                    selected = filterOption == AppFilterOption.UPDATES_AVAILABLE,
-                    onClick = { onFilterChange(AppFilterOption.UPDATES_AVAILABLE) },
-                    label = {
-                        Text(
-                            text = stringResource(R.string.filter_updates),
-                            style = MaterialTheme.typography.labelSmall
-                        )
-                    }
-                )
-                FilterChip(
-                    selected = filterOption == AppFilterOption.FAVORITES,
-                    onClick = { onFilterChange(AppFilterOption.FAVORITES) },
-                    label = {
-                        Text(
-                            text = stringResource(R.string.filter_favorites),
+                            text = stringResource(
+                                when (sortOption) {
+                                    AppSortOption.CATALOG -> R.string.sort_catalog
+                                    AppSortOption.RECENTLY_UPDATED -> R.string.sort_recently_updated
+                                    AppSortOption.NAME_ASC -> R.string.sort_name
+                                }
+                            ),
                             style = MaterialTheme.typography.labelSmall
                         )
                     }
@@ -899,7 +979,7 @@ fun VendorSelectionDialog(
         onDismissRequest = { },
         title = {
             Text(
-                text = "Chọn Vendor",
+                text = stringResource(R.string.vendor_select_title),
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
             )
@@ -910,7 +990,7 @@ fun VendorSelectionDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
-                    text = "Vui lòng chọn nhà cung cấp để tiếp tục:",
+                    text = stringResource(R.string.vendor_select_description),
                     style = MaterialTheme.typography.bodyMedium
                 )
                 Spacer(modifier = Modifier.height(8.dp))
@@ -924,7 +1004,7 @@ fun VendorSelectionDialog(
                 ) {
                     Column(Modifier.padding(8.dp)) {
                         Text("MorPhe", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
-                        Text("YouTube Morphe + MicroG RE", style = MaterialTheme.typography.bodySmall)
+                        Text(stringResource(R.string.vendor_morphe_desc), style = MaterialTheme.typography.bodySmall)
                     }
                 }
                 
@@ -937,7 +1017,7 @@ fun VendorSelectionDialog(
                 ) {
                     Column(Modifier.padding(8.dp)) {
                         Text("ReVanced", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
-                        Text("YouTube ReVanced + MicroG", style = MaterialTheme.typography.bodySmall)
+                        Text(stringResource(R.string.vendor_revanced_desc), style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }
@@ -945,4 +1025,43 @@ fun VendorSelectionDialog(
         confirmButton = {},
         dismissButton = {}
     )
+}
+/**
+ * "Update all" banner above the search bar (upstream 15fe35e): one tap takes every available
+ * update. On Android 12+ there are no per-app prompts — the installer dialog confirms each.
+ */
+@Composable
+private fun UpdateAllBanner(
+    count: Int,
+    onUpdateAll: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        onClick = onUpdateAll,
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.primaryContainer,
+        modifier = modifier
+            .fillMaxWidth()
+            .tvFocusBorder(shape = MaterialTheme.shapes.medium)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = stringResource(R.string.update_all_banner, count),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+            Text(
+                text = stringResource(R.string.update_all_action),
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+    }
 }

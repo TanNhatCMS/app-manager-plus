@@ -12,7 +12,6 @@ import javax.inject.Singleton
 @Singleton
 data class AppManagementUseCases @Inject constructor(
     val getAppsUseCase: GetAppsUseCase,
-    val downloadAppUseCase: DownloadAppUseCase,
     val installAppUseCase: InstallAppUseCase,
     val uninstallAppUseCase: UninstallAppUseCase,
     val openAppUseCase: OpenAppUseCase,
@@ -25,8 +24,12 @@ data class AppManagementUseCases @Inject constructor(
 class InstallAppUseCase @Inject constructor(
     private val appRepository: AppRepository
 ) {
-    suspend operator fun invoke(packageName: String, apkFilePath: String): Result<Boolean> {
-        return appRepository.installApp(packageName, apkFilePath)
+    suspend operator fun invoke(
+        packageName: String,
+        apkFilePath: String,
+        requireUserAction: Boolean = false
+    ): Result<Boolean> {
+        return appRepository.installApp(packageName, apkFilePath, requireUserAction)
     }
 }
 

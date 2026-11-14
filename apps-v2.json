@@ -28,6 +28,8 @@
           "description": "YouTube Morphe v21.04.223 (Morphe Patches v1.40.0-dev.7)",
           "iconUrl": "https://avatars.githubusercontent.com/u/246280111?s=48&v=4",
           "downloadUrl": "https://github.com/TanNhatCMS/app-manager-plus/releases/download/17-08-2026/YouTube_Morphe-v21.04.223-patches-v1.40.0-dev.7.apk",
+          "patchVersion": "1.40.0-dev.7",
+          "updatedAt": "2026-11-10T00:00:00Z",
           "requiresMicroG": true,
           "index": 1
         },
@@ -41,21 +43,10 @@
           "description": "YouTube Morphe v21.13.163 (Morphe Patches v1.23.0-dev.1)",
           "iconUrl": "https://avatars.githubusercontent.com/u/246280111?s=48&v=4",
           "downloadUrl": "https://github.com/TanNhatCMS/app-manager-plus/releases/download/1.0.0/YouTube_Morphe-v21.13.163-v1.23.0-dev.1.apk",
+          "patchVersion": "1.23.0-dev.1",
+          "updatedAt": "2026-09-01T00:00:00Z",
           "requiresMicroG": true,
           "index": 2
-        },
-        {
-          "category": "microg",
-          "channel": "stable",
-          "packageName": "app.revanced.android.gms",
-          "title": "MicroG RE",
-          "versionCode": 255034004,
-          "versionName": "6.1.4",
-          "description": "MicroG Services v6.1.4 (MorpheApp build)",
-          "iconUrl": "https://avatars.githubusercontent.com/u/246280111?s=48&v=4",
-          "downloadUrl": "https://github.com/MorpheApp/MicroG-RE/releases/download/6.1.4/microg-6.1.4.apk",
-          "requiresMicroG": false,
-          "index": 3
         }
       ]
     },
@@ -73,6 +64,8 @@
           "description": "YouTube ReVanced v20.40.45 (ReVanced Patches v6.1.0)",
           "iconUrl": "https://avatars.githubusercontent.com/u/101597779?s=48&v=4",
           "downloadUrl": "https://github.com/TanNhatCMS/app-manager-plus/releases/download/1.0.0/YouTube_ReVanced-v20.40.45-v6.1.0.apk",
+          "patchVersion": "6.1.0",
+          "updatedAt": "2026-10-20T00:00:00Z",
           "requiresMicroG": true,
           "index": 1
         },

@@ -61,9 +61,12 @@
         android:hardwareAccelerated="true"
         android:localeConfig="@xml/locales_config"
         tools:targetApi="31">
+        <!-- singleTop: a relaunch intent must not stack a second MainActivity (and a second
+             AppBloc racing the first on download completion). -->
         <activity
             android:name="com.app.manager.MainActivity"
             android:exported="true"
+            android:launchMode="singleTop"
             android:label="@string/app_name"
             android:theme="@style/Theme.App.Starting"
             >
@@ -76,14 +79,6 @@
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
-
-        <!-- Download Service -->
-        <service
-            android:name="com.app.manager.data.manager.DownloadService"
-            android:exported="false"
-            android:foregroundServiceType="dataSync" />
-
-
 
         <provider
             android:name="androidx.core.content.FileProvider"

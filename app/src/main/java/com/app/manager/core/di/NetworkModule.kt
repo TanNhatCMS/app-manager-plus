@@ -1,12 +1,14 @@
 package com.app.manager.core.di
 
+import android.util.Log
+import com.app.manager.data.local.preferences.PreferencesManager
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import kotlinx.serialization.json.Json
+import okhttp3.Interceptor
 import okhttp3.OkHttpClient
-import okhttp3.logging.HttpLoggingInterceptor
 import java.util.concurrent.TimeUnit
 import javax.inject.Qualifier
 import javax.inject.Singleton
@@ -17,6 +19,8 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
+
+    private const val HTTP_LOG_TAG = "HttpLog"
 
     @Qualifier
     @Retention(AnnotationRetention.BINARY)
@@ -34,19 +38,38 @@ object NetworkModule {
         isLenient = true
     }
 
+    /**
+     * One line per request: method, host+path, status, milliseconds, cached. Runs in release
+     * builds too (gated on the debug-logging preference) — headers and bodies are never logged,
+     * so no cookies or tokens can leak into the log (upstream 6998db0).
+     */
     @Provides
     @Singleton
-    fun provideHttpLoggingInterceptor(): HttpLoggingInterceptor {
-        return HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.HEADERS
+    fun provideHttpLoggingInterceptor(
+        preferencesManager: PreferencesManager
+    ): Interceptor = Interceptor { chain ->
+        val request = chain.request()
+        val start = System.currentTimeMillis()
+        val response = chain.proceed(request)
+        val enabled = runCatching { preferencesManager.getAppConfig().debugLogging }
+            .getOrDefault(false)
+        if (enabled) {
+            val cached = response.cacheResponse != null && response.networkResponse == null
+            Log.i(
+                HTTP_LOG_TAG,
+                "${request.method} ${request.url.host}${request.url.encodedPath}" +
+                    " → ${response.code} ${System.currentTimeMillis() - start}ms" +
+                    if (cached) " (cached)" else ""
+            )
         }
+        response
     }
 
     @Provides
     @Singleton
     @ApiClient
     fun provideApiOkHttpClient(
-        loggingInterceptor: HttpLoggingInterceptor
+        loggingInterceptor: Interceptor
     ): OkHttpClient {
         return OkHttpClient.Builder()
             .addInterceptor(loggingInterceptor)
@@ -59,8 +82,11 @@ object NetworkModule {
     @Provides
     @Singleton
     @DownloadClient
-    fun provideDownloadOkHttpClient(): OkHttpClient {
+    fun provideDownloadOkHttpClient(
+        loggingInterceptor: Interceptor
+    ): OkHttpClient {
         return OkHttpClient.Builder()
+            .addInterceptor(loggingInterceptor)
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(5, TimeUnit.MINUTES)
             .writeTimeout(5, TimeUnit.MINUTES)
@@ -73,5 +99,4 @@ object NetworkModule {
         return okHttpClient
     }
 
-} 
-
+}

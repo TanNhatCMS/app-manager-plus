@@ -1,6 +1,11 @@
 package com.app.manager.domain.usecase
 
+import com.app.manager.core.common.PatchUpdate
 import com.app.manager.core.common.Result
+import com.app.manager.core.common.VersionComparator
+import com.app.manager.core.common.InstalledBuildStore
+import com.app.manager.data.local.preferences.PreferencesManager
+import com.app.manager.data.manager.AppManager
 import com.app.manager.domain.model.AppStatus
 import com.app.manager.domain.model.RevancedApp
 import com.app.manager.domain.repository.AppRepository
@@ -13,9 +18,12 @@ import javax.inject.Inject
  * Implements business logic for app retrieval and status determination
  */
 class GetAppsUseCase @Inject constructor(
-    private val appRepository: AppRepository
+    private val appRepository: AppRepository,
+    private val appManager: AppManager,
+    private val installedBuildStore: InstalledBuildStore,
+    private val preferencesManager: PreferencesManager
 ) {
-    
+
     /**
      * Get apps with proper sorting and status checking
      * @param forceRefresh Whether to force refresh from network
@@ -25,8 +33,11 @@ class GetAppsUseCase @Inject constructor(
         return appRepository.getApps(forceRefresh).map { result ->
             when (result) {
                 is Result.Success -> {
+                    val patchUpdatesEnabled = runCatching {
+                        preferencesManager.getAppConfig().patchUpdatesEnabled
+                    }.getOrDefault(true)
                     val sortedApps = result.data
-                        .map { app -> app.copy(status = determineAppStatus(app)) }
+                        .map { app -> determineAppStatus(app, patchUpdatesEnabled) }
                         .sortedWith(
                             compareBy<RevancedApp> { app ->
                                 // Primary sort: installed apps first
@@ -47,59 +58,36 @@ class GetAppsUseCase @Inject constructor(
             }
         }
     }
-    
+
     /**
-     * Compare two version strings
-     * @param installedVersion Currently installed version
-     * @param latestVersion Latest available version
-     * @return Positive if installedVersion > latestVersion, negative if less, zero if equal
+     * Determine the status of an app and mark patch-only updates.
+     *
+     * The versionName is compared against the catalog's versionName — the versionCode is useless
+     * for this: some catalog entries publish versionCode 2147483647 so no installed code can
+     * match, which used to keep every such app stuck on UPDATE_AVAILABLE.
+     *
+     * A same-versionName entry can still be an update when its provider rebuilt the app with
+     * newer patches only ([PatchUpdate]); the settings switch turns that detection off.
      */
-    private fun compareVersions(version1: String, version2: String): Int {
-        if (version1.isEmpty() || version2.isEmpty()) {
-            return 0
-        }
-        
-        return try {
-            val installedParts = version1.split(".").map { part ->
-                part.takeWhile { it.isDigit() }.ifEmpty { "0" }
-            }
-            val latestParts = version2.split(".").map { part ->
-                part.takeWhile { it.isDigit() }.ifEmpty { "0" }
-            }
-            
-            val length = minOf(installedParts.size, latestParts.size)
-            
-            for (i in 0 until length) {
-                val installedNum = installedParts[i].toLongOrNull() ?: 0L
-                val latestNum = latestParts[i].toLongOrNull() ?: 0L
-                
-                when {
-                    installedNum > latestNum -> return 1
-                    installedNum < latestNum -> return -1
+    private fun determineAppStatus(app: RevancedApp, patchUpdatesEnabled: Boolean): RevancedApp {
+        val installed = app.currentVersion ?: return app.copy(status = AppStatus.NOT_INSTALLED)
+        val cmp = VersionComparator.compare(installed, app.latestVersionName)
+        val (status, isPatchUpdate) = when {
+            cmp > 0 -> AppStatus.UP_TO_DATE to false
+            cmp == 0 -> {
+                if (!patchUpdatesEnabled) {
+                    AppStatus.UP_TO_DATE to false
+                } else {
+                    val patchNewer = PatchUpdate.hasNewerPatch(
+                        app = app,
+                        record = installedBuildStore.get(app.packageName),
+                        installedLastUpdateTime = appManager.getInstalledLastUpdateTime(app.packageName) ?: 0L
+                    )
+                    (if (patchNewer) AppStatus.UPDATE_AVAILABLE else AppStatus.UP_TO_DATE) to patchNewer
                 }
             }
-            
-            installedParts.size.compareTo(latestParts.size)
-        } catch (e: Exception) {
-            0
+            else -> AppStatus.UPDATE_AVAILABLE to false
         }
+        return app.copy(status = status, isPatchUpdate = isPatchUpdate)
     }
-    
-    /**
-     * Determine the status of an app based on its installed and latest versions
-     * @param app The RevancedApp to check
-     * @return AppStatus representing the current status
-     */
-     private fun determineAppStatus(app: RevancedApp): AppStatus {
-        val installedVersionCode = app.currentVersion?.toLongOrNull()
-
-        return when {
-            app.currentVersion == null -> AppStatus.NOT_INSTALLED
-            // Ưu tiên so sánh VersionCode (Long) nếu có thể
-            installedVersionCode != null && installedVersionCode >= app.latestVersionCode -> AppStatus.UP_TO_DATE
-            // Fallback: So sánh VersionName (String) nếu không thể lấy VersionCode
-            installedVersionCode == null && compareVersions(app.currentVersion, app.latestVersionName) >= 0 -> AppStatus.UP_TO_DATE
-            else -> AppStatus.UPDATE_AVAILABLE
-        }
-    }
-} 
+}

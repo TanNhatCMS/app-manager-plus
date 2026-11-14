@@ -1,5 +1,7 @@
 package com.app.manager.data.repository
 
+import android.util.Log
+import com.app.manager.config.Config
 import com.app.manager.core.common.Result
 import com.app.manager.core.di.NetworkModule.ApiClient
 import com.app.manager.data.manager.AppManager
@@ -32,11 +34,14 @@ class AppRepositoryImpl @Inject constructor(
     private val json: Json,
     private val appManager: AppManager,
     private val simpleDownloadManager: SimpleDownloadManager,
-    private val packageInstaller: RevancedPackageInstaller
+    private val packageInstaller: RevancedPackageInstaller,
+    private val githubReleaseResolver: com.app.manager.data.manager.GitHubReleaseResolver
 ) : AppRepository {
 
     @Volatile
     private var cachedApps: List<RevancedApp> = emptyList()
+
+    private val TAG = "AppRepositoryImpl"
 
     override fun getApps(forceRefresh: Boolean): Flow<Result<List<RevancedApp>>> = flow {
         emit(Result.Loading)
@@ -105,8 +110,12 @@ class AppRepositoryImpl @Inject constructor(
         return simpleDownloadManager.downloadApp(packageName, downloadUrl)
     }
 
-    override suspend fun installApp(packageName: String, apkFilePath: String): Result<Boolean> {
-        return runCatching { packageInstaller.installPackage(packageName, apkFilePath) }
+    override suspend fun installApp(
+        packageName: String,
+        apkFilePath: String,
+        requireUserAction: Boolean
+    ): Result<Boolean> {
+        return runCatching { packageInstaller.installPackage(packageName, apkFilePath, requireUserAction) }
             .fold(
                 onSuccess = { Result.Success(it) },
                 onFailure = { Result.Error(it) }
@@ -145,11 +154,76 @@ class AppRepositoryImpl @Inject constructor(
 
             val parsed = parseApps(responseBody.getOrThrow())
             if (parsed.isNotEmpty()) {
-                return parsed
+                return resolveDynamicEntries(injectMorpheMicrog(parsed))
             }
         }
 
         throw lastError
+    }
+
+    /**
+     * The Morphe MicroG build is tracked in code, not in apps-v2.json: this strips any catalog
+     * MicroG entries of the Morphe vendor and appends the two manager-owned entries that follow
+     * the MorpheApp/MicroG-RE release stream — `stable` = newest "Latest" release, `beta` =
+     * newest pre-release (shown when the beta channel is enabled). The entries are resolved to a
+     * concrete APK by [resolveDynamicEntries]; the static values below are the offline fallback.
+     */
+    private fun injectMorpheMicrog(apps: List<RevancedApp>): List<RevancedApp> {
+        val withoutCatalogMicrog = apps.filterNot { app ->
+            app.vendor == "morphe" && app.packageName == Config.MORPHE_MICROG_PACKAGE
+        }
+        val stable = RevancedApp(
+            packageName = Config.MORPHE_MICROG_PACKAGE,
+            title = "MicroG RE",
+            latestVersionCode = 0L,
+            latestVersionName = Config.MORPHE_MICROG_FALLBACK_STABLE_VERSION,
+            currentVersion = appManager.getInstalledVersionName(Config.MORPHE_MICROG_PACKAGE),
+            description = "MicroG Services (MorpheApp build) — follows the newest Latest release of MorpheApp/MicroG-RE; the APK variant is matched to this device.",
+            iconUrl = Config.MORPHE_ICON_URL,
+            downloadUrl = Config.MORPHE_MICROG_FALLBACK_STABLE_URL,
+            requiresMicroG = false,
+            index = 3,
+            status = AppStatus.UNKNOWN,
+            vendor = "morphe",
+            channel = "stable",
+            githubRepo = Config.MORPHE_MICROG_REPO,
+            githubPrerelease = false,
+            signingSha256 = Config.MORPHE_MICROG_FINGERPRINT
+        )
+        val beta = stable.copy(
+            title = "MicroG RE Thử nghiệm",
+            latestVersionName = Config.MORPHE_MICROG_FALLBACK_BETA_VERSION,
+            description = "MicroG Services (MorpheApp build) — follows the newest Pre-release of MorpheApp/MicroG-RE; the APK variant is matched to this device.",
+            downloadUrl = Config.MORPHE_MICROG_FALLBACK_BETA_URL,
+            index = 4,
+            channel = "beta",
+            githubPrerelease = true
+        )
+        return withoutCatalogMicrog + stable + beta
+    }
+
+    /**
+     * Resolve catalog entries backed by a GitHub repository (`"source": "github-releases"`) into
+     * the repo's newest stable ("Latest") or pre-release build, with the APK variant matched to
+     * this device. A failed or offline resolution keeps the catalog's static fallback values.
+     */
+    private suspend fun resolveDynamicEntries(apps: List<RevancedApp>): List<RevancedApp> {
+        val dynamic = apps.filter { it.githubRepo != null }
+        if (dynamic.isEmpty()) return apps
+
+        return apps.map { app ->
+            val repo = app.githubRepo ?: return@map app
+            val resolved = runCatching {
+                githubReleaseResolver.resolve(repo, app.githubPrerelease, app.githubAssetNoicon)
+            }.getOrNull() ?: return@map app
+
+            Log.d(TAG, "Resolved $repo (prerelease=${app.githubPrerelease}): v${resolved.versionName} → ${resolved.downloadUrl}")
+            app.copy(
+                latestVersionName = resolved.versionName,
+                downloadUrl = resolved.downloadUrl,
+                updatedAt = if (resolved.updatedAtMs > 0) resolved.updatedAtMs else app.updatedAt
+            )
+        }
     }
 
     private fun parseApps(root: JsonElement): List<RevancedApp> {
@@ -224,13 +298,24 @@ class AppRepositoryImpl @Inject constructor(
         val description = obj.string("description", "desc") ?: ""
         val iconUrl = obj.string("iconUrl", "icon_url", "icon")?.withBaseUrl() ?: ""
         val downloadUrl = obj.string("downloadUrl", "download_url", "url", "apk", "link")?.withBaseUrl()
-            ?: return null
         val requiresMicroG = obj.boolean("requiresMicroG", "requires_microg", "microg") ?: false
         val appIndex = obj.int("index", "order") ?: fallbackIndex
-        val currentVersion = appManager.getInstalledVersion(packageName)
+        val currentVersion = appManager.getInstalledVersionName(packageName)
         val channel = obj.string("channel")
         val variant = obj.string("variant")
         val variantLabel = obj.string("variantLabel")
+        // Optional v2.1 fields: when this provider rebuilt the app with newer patches only, the
+        // patch-update check needs the patches version and the build date.
+        val patchVersion = obj.string("patchVersion", "patch_version", "patches")
+        val updatedAt = obj.string("updatedAt", "updated_at")?.let(::parseIsoTimestamp)
+        // Optional v2.2 fields: a GitHub-releases-backed entry is resolved to the repo's newest
+        // stable ("Latest") or pre-release build at load time, with the APK variant matched to
+        // this device's ABI. The static values below are the offline fallback.
+        val githubSource = obj.string("source")
+        val githubRepo = if (githubSource == "github-releases") obj.string("repo") else null
+        val githubPrerelease = obj.boolean("prerelease") ?: false
+        val githubAssetNoicon = obj.boolean("noiconAsset") ?: false
+        val signingSha256 = obj.string("signingSha256", "signing_sha256")
 
         return RevancedApp(
             packageName = packageName,
@@ -240,14 +325,20 @@ class AppRepositoryImpl @Inject constructor(
             currentVersion = currentVersion,
             description = description,
             iconUrl = iconUrl,
-            downloadUrl = downloadUrl,
+            downloadUrl = downloadUrl ?: "",
             requiresMicroG = requiresMicroG,
             index = appIndex,
             status = AppStatus.UNKNOWN,
             vendor = vendor,
             channel = channel,
             variant = variant,
-            variantLabel = variantLabel
+            variantLabel = variantLabel,
+            updatedAt = updatedAt,
+            patchVersion = patchVersion,
+            githubRepo = githubRepo,
+            githubPrerelease = githubPrerelease,
+            githubAssetNoicon = githubAssetNoicon,
+            signingSha256 = signingSha256
         )
     }
 
@@ -292,6 +383,15 @@ class AppRepositoryImpl @Inject constructor(
 
     private fun String.withBaseUrl(): String {
         return if (startsWith("http://") || startsWith("https://")) this else RAW_BASE_URL + trimStart('/')
+    }
+
+    /** ISO-8601 timestamp ("2026-11-10T00:00:00Z") → epoch millis, or null when unparseable. */
+    private fun parseIsoTimestamp(value: String): Long? {
+        return runCatching {
+            val format = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US)
+            format.timeZone = java.util.TimeZone.getTimeZone("UTC")
+            format.parse(value)?.time
+        }.getOrNull()
     }
 
     private fun fetchBodyAsJson(endpoint: String): JsonElement {

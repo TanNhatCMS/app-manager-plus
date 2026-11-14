@@ -6,7 +6,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import com.app.manager.domain.model.ThemeMode
 import com.app.manager.ui.theme.Typography
@@ -97,30 +99,36 @@ fun RevancedManagerTheme(
     
     val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
-        content = content
-    )
+    // Action-button colors must follow the app's chosen theme (LIGHT in-app on a dark-mode
+    // phone used to read as dark and pick the wrong shades — isSystemInDarkTheme lies there).
+    CompositionLocalProvider(LocalDarkTheme provides darkTheme) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = Typography,
+            content = content
+        )
+    }
 }
+
+val LocalDarkTheme = staticCompositionLocalOf { false }
 
 // Extension properties for custom action button colors
 val ColorScheme.downloadColor: Color
     @Composable
     @ReadOnlyComposable
-    get() = if (isSystemInDarkTheme()) Blue400 else Blue600
+    get() = if (LocalDarkTheme.current) Blue400 else Blue600
 
 val ColorScheme.updateColor: Color
     @Composable
     @ReadOnlyComposable
-    get() = if (isSystemInDarkTheme()) Orange400 else Orange600
+    get() = if (LocalDarkTheme.current) Orange400 else Orange600
 
 val ColorScheme.openColor: Color
     @Composable
     @ReadOnlyComposable
-    get() = if (isSystemInDarkTheme()) Green400 else Green600
+    get() = if (LocalDarkTheme.current) Green400 else Green600
 
 val ColorScheme.uninstallColor: Color
     @Composable
     @ReadOnlyComposable
-    get() = if (isSystemInDarkTheme()) Red500 else Red600 
+    get() = if (LocalDarkTheme.current) Red500 else Red600

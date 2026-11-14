@@ -143,4 +143,80 @@
     <string name="favorite_added">Added to favorites</string>
     <string name="favorite_removed">Removed from favorites</string>
     <string name="no_favorites_yet">No favorites yet. Tap the star on any app to add it.</string>
+
+    <!-- Settings screen -->
+    <string name="back">Back</string>
+    <string name="save">Save</string>
+    <string name="settings_section_display">Display</string>
+    <string name="settings_section_storage">Storage</string>
+    <string name="settings_section_debug">Debug</string>
+    <string name="settings_section_beta">Vendor &amp; beta</string>
+    <string name="show_beta">Show beta versions</string>
+    <string name="show_beta_description">Include beta channel builds in the app list</string>
+    <string name="vendor_not_selected">Not selected</string>
+    <string name="clear_cache_confirm_title">Clear APK cache?</string>
+    <string name="clear_cache_confirm_message">All downloaded APK files will be deleted from the cache. Installed apps are not affected.</string>
+
+    <!-- App detail screen -->
+    <string name="detail_copy_package">Copy package name</string>
+    <string name="detail_package_copied">Package name copied</string>
+    <string name="detail_variant">Variant</string>
+    <string name="detail_vendor">Vendor</string>
+    <string name="requires_microg">⚠️ Requires MicroG</string>
+
+    <!-- Download gating & MicroG suggestion -->
+    <string name="install_permission_missing">Enable \"Install unknown apps\" for this manager before downloading.</string>
+    <string name="microg_suggestion_title">Install MicroG?</string>
+    <string name="microg_suggestion_description">Some apps in the catalog (Morphe/ReVanced YouTube and others) need MicroG to run. None is installed yet — pick a build to install:</string>
+    <string name="microg_suggestion_confirm">Install selected</string>
+    <string name="microg_suggestion_dismiss">Not now</string>
+    <string name="microg_uninstall_warning_title">Uninstall MicroG?</string>
+    <string name="microg_uninstall_warning_message">Apps that depend on MicroG are still installed. They may stop working after MicroG is removed.</string>
+
+    <!-- Classified install failures -->
+    <string name="install_failed_storage_message">Could not install %1$s: not enough free storage. Free up space and try again.</string>
+    <string name="install_failed_incompatible_message">Could not install %1$s: this build is not compatible with this device (architecture or Android version).</string>
+    <string name="install_failed_blocked_message">Could not install %1$s: the system or Play Protect blocked the installation.</string>
+    <string name="install_failed_invalid_message">Could not install %1$s: the downloaded APK is damaged. Download it again.</string>
+    <string name="install_failed_generic_message">Could not install %1$s: %2$s</string>
+
+    <!-- Update-all banner, update prompt & background check -->
+    <string name="update_all_banner">%1$d updates available</string>
+    <string name="update_all_action">Update all</string>
+    <string name="updating_count">Updating %1$d apps…</string>
+    <string name="update_prompt_title">Updates available</string>
+    <string name="update_prompt_description">Some installed apps have newer builds. Choose which ones to update:</string>
+    <string name="update_prompt_install">Update %1$d</string>
+    <string name="update_prompt_skip_today">Skip today</string>
+    <string name="update_prompt_turn_off">Don\'t show again</string>
+    <string name="update_prompt_turned_off">Update popup turned off — re-enable it in Settings.</string>
+    <string name="update_notification_channel">Update checks</string>
+    <string name="update_notification_title">%1$d app updates available</string>
+
+    <!-- Sort & MicroG button -->
+    <string name="sort_catalog">Catalog</string>
+    <string name="sort_recently_updated">Recent</string>
+    <string name="sort_name">Name</string>
+    <string name="install_microg_button">Install MicroG</string>
+    <string name="settings_section_updates">Updates</string>
+    <string name="show_update_prompt">Update popup on launch</string>
+    <string name="show_update_prompt_description">Offer available updates when the app opens</string>
+    <string name="auto_update_check">Daily update check</string>
+    <string name="auto_update_check_description">Check for updates once a day in the background and notify</string>
+    <string name="patch_updates">Updates with newer patches</string>
+    <string name="patch_updates_description">Offer builds where only the patches changed, not the app version</string>
+    <string name="new_patch_badge">New patch: %1$s</string>
+    <string name="detail_patches">Patches</string>
+    <string name="save_logs">Save as file</string>
+    <string name="logs_saved">Log saved</string>
+    <string name="logs_save_failed">Could not save the log</string>
+    <string name="clear_search">Clear search</string>
+    <string name="vendor_select_title">Choose a vendor</string>
+    <string name="vendor_select_description">Pick which provider catalog to show:</string>
+    <string name="vendor_morphe_desc">YouTube Morphe + MicroG RE</string>
+    <string name="vendor_revanced_desc">YouTube ReVanced + MicroG</string>
+    <string name="refresh">Refresh</string>
+    <string name="installed_label">Installed</string>
+    <string name="latest_label">Latest</string>
+    <string name="install_failed_signature_mismatch_message">Blocked installing %1$s: the signature of the downloaded APK does not match the publisher fingerprint (%2$s). The file may not be an official build.</string>
 </resources>

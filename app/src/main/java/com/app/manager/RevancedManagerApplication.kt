@@ -3,6 +3,7 @@ package com.app.manager
 import android.app.Activity
 import android.app.Application
 import android.content.Context
+import android.os.Build
 import android.os.Bundle
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
@@ -107,6 +108,26 @@ class RevancedManagerApplication : Application(), Configuration.Provider {
         val locale = java.util.Locale(languageCode)
         java.util.Locale.setDefault(locale)
         android.util.Log.d("RevancedApp", "Set default locale to: ${java.util.Locale.getDefault()}")
+
+        // Daily background update check (no-op when the user turns it off in Settings).
+        com.app.manager.data.manager.UpdateCheckWorker.schedule(WorkManager.getInstance(this))
+
+        // Record uncaught crashes synchronously into a log file — the in-memory debug logs die
+        // with the process, but this file survives to the next launch (upstream 6998db0).
+        val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            runCatching {
+                val format = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US)
+                java.io.File(cacheDir, "revanced-manager-crash.log").appendText(
+                    buildString {
+                        appendLine("===== CRASH ${format.format(java.util.Date())} (thread=${thread.name}) =====")
+                        appendLine("device=${Build.MANUFACTURER} ${Build.MODEL} / Android ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT})")
+                        appendLine(throwable.stackTraceToString())
+                    }
+                )
+            }
+            defaultHandler?.uncaughtException(thread, throwable)
+        }
     }
     
     override val workManagerConfiguration: Configuration

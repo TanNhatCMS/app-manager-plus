@@ -143,4 +143,80 @@
     <string name="favorite_added">Đã thêm vào yêu thích</string>
     <string name="favorite_removed">Đã xóa khỏi yêu thích</string>
     <string name="no_favorites_yet">Chưa có yêu thích. Nhấn ngôi sao trên ứng dụng để thêm.</string>
+
+    <!-- Settings screen -->
+    <string name="back">Quay lại</string>
+    <string name="save">Lưu</string>
+    <string name="settings_section_display">Hiển thị</string>
+    <string name="settings_section_storage">Lưu trữ</string>
+    <string name="settings_section_debug">Gỡ lỗi</string>
+    <string name="settings_section_beta">Nhà cung cấp &amp; bản beta</string>
+    <string name="show_beta">Hiển thị bản beta</string>
+    <string name="show_beta_description">Bao gồm các bản kênh beta trong danh sách ứng dụng</string>
+    <string name="vendor_not_selected">Chưa chọn</string>
+    <string name="clear_cache_confirm_title">Xóa bộ nhớ đệm APK?</string>
+    <string name="clear_cache_confirm_message">Toàn bộ file APK đã tải sẽ bị xóa khỏi bộ nhớ đệm. Ứng dụng đã cài đặt không bị ảnh hưởng.</string>
+
+    <!-- App detail screen -->
+    <string name="detail_copy_package">Sao chép tên gói</string>
+    <string name="detail_package_copied">Đã sao chép tên gói</string>
+    <string name="detail_variant">Biến thể</string>
+    <string name="detail_vendor">Nhà cung cấp</string>
+    <string name="requires_microg">⚠️ Yêu cầu MicroG</string>
+
+    <!-- Download gating & MicroG suggestion -->
+    <string name="install_permission_missing">Bật quyền \"Cài đặt ứng dụng không xác định\" cho trình quản lý trước khi tải.</string>
+    <string name="microg_suggestion_title">Cài MicroG?</string>
+    <string name="microg_suggestion_description">Một số ứng dụng trong danh sách (Morphe/ReVanced YouTube và các app khác) cần MicroG để chạy. Chưa có bản nào được cài — chọn bản để cài:</string>
+    <string name="microg_suggestion_confirm">Cài các mục đã chọn</string>
+    <string name="microg_suggestion_dismiss">Để sau</string>
+    <string name="microg_uninstall_warning_title">Gỡ MicroG?</string>
+    <string name="microg_uninstall_warning_message">Vẫn còn ứng dụng phụ thuộc vào MicroG đang được cài đặt. Chúng có thể ngừng hoạt động sau khi gỡ MicroG.</string>
+
+    <!-- Classified install failures -->
+    <string name="install_failed_storage_message">Không thể cài %1$s: không đủ dung lượng lưu trữ. Hãy giải phóng không gian và thử lại.</string>
+    <string name="install_failed_incompatible_message">Không thể cài %1$s: bản này không tương thích với thiết bị (kiến trúc hoặc phiên bản Android).</string>
+    <string name="install_failed_blocked_message">Không thể cài %1$s: hệ thống hoặc Play Protect đã chặn việc cài đặt.</string>
+    <string name="install_failed_invalid_message">Không thể cài %1$s: file APK đã tải bị hỏng. Hãy tải lại.</string>
+    <string name="install_failed_generic_message">Không thể cài %1$s: %2$s</string>
+
+    <!-- Update-all banner, update prompt & background check -->
+    <string name="update_all_banner">Có %1$d bản cập nhật</string>
+    <string name="update_all_action">Cập nhật tất cả</string>
+    <string name="updating_count">Đang cập nhật %1$d ứng dụng…</string>
+    <string name="update_prompt_title">Có bản cập nhật</string>
+    <string name="update_prompt_description">Một số ứng dụng đã cài có bản mới hơn. Chọn ứng dụng muốn cập nhật:</string>
+    <string name="update_prompt_install">Cập nhật %1$d</string>
+    <string name="update_prompt_skip_today">Bỏ qua hôm nay</string>
+    <string name="update_prompt_turn_off">Không hiện lại nữa</string>
+    <string name="update_prompt_turned_off">Đã tắt popup cập nhật — bật lại trong Cài đặt.</string>
+    <string name="update_notification_channel">Kiểm tra cập nhật</string>
+    <string name="update_notification_title">Có %1$d ứng dụng cần cập nhật</string>
+
+    <!-- Sort & MicroG button -->
+    <string name="sort_catalog">Mặc định</string>
+    <string name="sort_recently_updated">Mới nhất</string>
+    <string name="sort_name">Tên</string>
+    <string name="install_microg_button">Cài MicroG</string>
+    <string name="settings_section_updates">Cập nhật</string>
+    <string name="show_update_prompt">Popup cập nhật khi mở ứng dụng</string>
+    <string name="show_update_prompt_description">Đề xuất cập nhật khả dụng mỗi khi mở ứng dụng</string>
+    <string name="auto_update_check">Kiểm tra cập nhật hằng ngày</string>
+    <string name="auto_update_check_description">Kiểm tra cập nhật nền mỗi ngày và thông báo</string>
+    <string name="patch_updates">Cập nhật patches mới hơn</string>
+    <string name="patch_updates_description">Đề xuất các bản chỉ thay đổi patches, không đổi phiên bản ứng dụng</string>
+    <string name="new_patch_badge">Patches mới: %1$s</string>
+    <string name="detail_patches">Patches</string>
+    <string name="save_logs">Lưu thành file</string>
+    <string name="logs_saved">Đã lưu log</string>
+    <string name="logs_save_failed">Không thể lưu log</string>
+    <string name="clear_search">Xóa tìm kiếm</string>
+    <string name="vendor_select_title">Chọn nhà cung cấp</string>
+    <string name="vendor_select_description">Chọn danh sách nhà cung cấp để hiển thị:</string>
+    <string name="vendor_morphe_desc">YouTube Morphe + MicroG RE</string>
+    <string name="vendor_revanced_desc">YouTube ReVanced + MicroG</string>
+    <string name="refresh">Làm mới</string>
+    <string name="installed_label">Đã cài</string>
+    <string name="latest_label">Mới nhất</string>
+    <string name="install_failed_signature_mismatch_message">Đã chặn cài %1$s: chữ ký của APK tải về không khớp fingerprint của nhà phát hành (%2$s). File có thể không phải bản chính thức.</string>
 </resources>

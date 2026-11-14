@@ -42,7 +42,10 @@ class PreferencesManager @Inject constructor(
             debugLogging = debugLogging,
             downloadPath = downloadPath,
             vendor = vendor,
-            showBeta = showBeta
+            showBeta = showBeta,
+            showUpdatePrompt = sharedPreferences.getBoolean(KEY_SHOW_UPDATE_PROMPT, true),
+            autoUpdateCheck = sharedPreferences.getBoolean(KEY_AUTO_UPDATE_CHECK, true),
+            patchUpdatesEnabled = sharedPreferences.getBoolean(KEY_PATCH_UPDATES_ENABLED, true)
         )
     }
 
@@ -55,7 +58,44 @@ class PreferencesManager @Inject constructor(
             .putString(KEY_DOWNLOAD_PATH, config.downloadPath.ifBlank { defaultDownloadPath() })
             .putString(KEY_VENDOR, config.vendor)
             .putBoolean(KEY_SHOW_BETA, config.showBeta)
+            .putBoolean(KEY_SHOW_UPDATE_PROMPT, config.showUpdatePrompt)
+            .putBoolean(KEY_AUTO_UPDATE_CHECK, config.autoUpdateCheck)
+            .putBoolean(KEY_PATCH_UPDATES_ENABLED, config.patchUpdatesEnabled)
             .apply()
+    }
+
+    // ---- List filter & sort (persisted across launches) ----
+
+    fun getFilterOption(): String = sharedPreferences.getString(KEY_FILTER_OPTION, null) ?: ""
+
+    fun setFilterOption(value: String) {
+        sharedPreferences.edit().putString(KEY_FILTER_OPTION, value).apply()
+    }
+
+    fun getSortOption(): String = sharedPreferences.getString(KEY_SORT_OPTION, null) ?: ""
+
+    fun setSortOption(value: String) {
+        sharedPreferences.edit().putString(KEY_SORT_OPTION, value).apply()
+    }
+
+    // ---- Update prompt ----
+
+    /** The local date (ISO) the "N updates available" prompt was snoozed for, or null. */
+    fun getUpdatePromptSnoozedDate(): String? =
+        sharedPreferences.getString(KEY_UPDATE_PROMPT_SNOOZED_DATE, null)
+
+    fun setUpdatePromptSnoozedDate(date: String) {
+        sharedPreferences.edit().putString(KEY_UPDATE_PROMPT_SNOOZED_DATE, date).apply()
+    }
+
+    // ---- Background update check notification ----
+
+    /** Signature (package@version list) of the last update notification that was posted. */
+    fun getLastNotifiedUpdateSignature(): String? =
+        sharedPreferences.getString(KEY_LAST_NOTIFIED_UPDATE_SIGNATURE, null)
+
+    fun setLastNotifiedUpdateSignature(signature: String) {
+        sharedPreferences.edit().putString(KEY_LAST_NOTIFIED_UPDATE_SIGNATURE, signature).apply()
     }
 
     fun getSelectedVendor(): String? {
@@ -114,6 +154,14 @@ class PreferencesManager @Inject constructor(
         sharedPreferences.edit().remove(key).apply()
     }
 
+    /** Whether the first-run "install MicroG" suggestion was already offered (and dismissed). */
+    fun isMicrogSuggestionShown(): Boolean =
+        sharedPreferences.getBoolean(KEY_MICROG_SUGGESTION_SHOWN, false)
+
+    fun setMicrogSuggestionShown() {
+        sharedPreferences.edit().putBoolean(KEY_MICROG_SUGGESTION_SHOWN, true).apply()
+    }
+
     private fun defaultDownloadPath(): String {
         val base = Environment.getExternalStorageDirectory()
         return File(base, "AppManager").absolutePath
@@ -130,5 +178,13 @@ class PreferencesManager @Inject constructor(
         private const val KEY_VENDOR = "vendor"
         private const val KEY_SHOW_BETA = "show_beta"
         private const val KEY_FAVORITES = "favorites"
+        private const val KEY_MICROG_SUGGESTION_SHOWN = "microg_suggestion_shown"
+        private const val KEY_SHOW_UPDATE_PROMPT = "show_update_prompt"
+        private const val KEY_AUTO_UPDATE_CHECK = "auto_update_check"
+        private const val KEY_PATCH_UPDATES_ENABLED = "patch_updates_enabled"
+        private const val KEY_FILTER_OPTION = "filter_option"
+        private const val KEY_SORT_OPTION = "sort_option"
+        private const val KEY_UPDATE_PROMPT_SNOOZED_DATE = "update_prompt_snoozed_date"
+        private const val KEY_LAST_NOTIFIED_UPDATE_SIGNATURE = "last_notified_update_signature"
     }
 }
