@@ -45,7 +45,8 @@ class PreferencesManager @Inject constructor(
             showBeta = showBeta,
             showUpdatePrompt = sharedPreferences.getBoolean(KEY_SHOW_UPDATE_PROMPT, true),
             autoUpdateCheck = sharedPreferences.getBoolean(KEY_AUTO_UPDATE_CHECK, true),
-            patchUpdatesEnabled = sharedPreferences.getBoolean(KEY_PATCH_UPDATES_ENABLED, true)
+            patchUpdatesEnabled = sharedPreferences.getBoolean(KEY_PATCH_UPDATES_ENABLED, true),
+            microgIconHidden = sharedPreferences.getBoolean(KEY_MICROG_ICON_HIDDEN, false)
         )
     }
 
@@ -61,6 +62,7 @@ class PreferencesManager @Inject constructor(
             .putBoolean(KEY_SHOW_UPDATE_PROMPT, config.showUpdatePrompt)
             .putBoolean(KEY_AUTO_UPDATE_CHECK, config.autoUpdateCheck)
             .putBoolean(KEY_PATCH_UPDATES_ENABLED, config.patchUpdatesEnabled)
+            .putBoolean(KEY_MICROG_ICON_HIDDEN, config.microgIconHidden)
             .apply()
     }
 
@@ -182,6 +184,7 @@ class PreferencesManager @Inject constructor(
         private const val KEY_SHOW_UPDATE_PROMPT = "show_update_prompt"
         private const val KEY_AUTO_UPDATE_CHECK = "auto_update_check"
         private const val KEY_PATCH_UPDATES_ENABLED = "patch_updates_enabled"
+        private const val KEY_MICROG_ICON_HIDDEN = "microg_icon_hidden"
         private const val KEY_FILTER_OPTION = "filter_option"
         private const val KEY_SORT_OPTION = "sort_option"
         private const val KEY_UPDATE_PROMPT_SNOOZED_DATE = "update_prompt_snoozed_date"

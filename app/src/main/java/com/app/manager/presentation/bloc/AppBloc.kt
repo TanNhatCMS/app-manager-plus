@@ -2455,6 +2455,10 @@ class AppBloc @Inject constructor(
             }
         }
         
+        // A different MicroG icon choice changes which release asset is offered: the dynamic
+        // entries must be re-resolved, so force a catalog refresh.
+        val microgVariantChanged = previousConfig.microgIconHidden != config.microgIconHidden
+
         // Check if language changed and apply immediately
         val languageChanged = previousConfig.language != config.language
         Log.i(TAG, "🔧 Language changed: $languageChanged")
@@ -2472,6 +2476,11 @@ class AppBloc @Inject constructor(
             showToast(stringProvider.getString(R.string.configuration_saved))
         }
         
+        if (microgVariantChanged) {
+            Log.i(TAG, "🔧 MicroG icon variant changed — re-resolving the MicroG release")
+            loadApps(forceRefresh = true)
+        }
+
         Log.i(TAG, "🔧 === SAVE CONFIGURATION END ===")
     }
     

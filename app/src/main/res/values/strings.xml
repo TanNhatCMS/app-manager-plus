@@ -219,4 +219,7 @@
     <string name="installed_label">Installed</string>
     <string name="latest_label">Latest</string>
     <string name="install_failed_signature_mismatch_message">Blocked installing %1$s: the signature of the downloaded APK does not match the publisher fingerprint (%2$s). The file may not be an official build.</string>
+    <string name="settings_section_microg">MicroG</string>
+    <string name="microg_hide_icon">Hide MicroG launcher icon</string>
+    <string name="microg_hide_icon_description">Install the icon-hidden (noicon) MicroG build — same features, no icon on the home screen</string>
 </resources>

@@ -81,6 +81,7 @@ fun SettingsScreen(
     var showUpdatePrompt by remember(currentConfig) { mutableStateOf(currentConfig.showUpdatePrompt) }
     var autoUpdateCheck by remember(currentConfig) { mutableStateOf(currentConfig.autoUpdateCheck) }
     var patchUpdatesEnabled by remember(currentConfig) { mutableStateOf(currentConfig.patchUpdatesEnabled) }
+    var microgIconHidden by remember(currentConfig) { mutableStateOf(currentConfig.microgIconHidden) }
     var downloadPath by remember(currentConfig) { mutableStateOf(currentConfig.downloadPath) }
     var showClearCacheConfirm by remember { mutableStateOf(false) }
     val context = LocalContext.current
@@ -182,6 +183,16 @@ fun SettingsScreen(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                 )
 
+                // MicroG section
+                SettingsSectionHeader(stringResource(R.string.settings_section_microg))
+                SettingsSwitchRow(
+                    title = stringResource(R.string.microg_hide_icon),
+                    subtitle = stringResource(R.string.microg_hide_icon_description),
+                    checked = microgIconHidden,
+                    onCheckedChange = { microgIconHidden = it },
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+
                 // Vendor & beta section
                 SettingsSectionHeader(stringResource(R.string.settings_section_beta))
                 SettingsSwitchRow(
@@ -255,7 +266,8 @@ fun SettingsScreen(
                                 showBeta = showBeta,
                                 showUpdatePrompt = showUpdatePrompt,
                                 autoUpdateCheck = autoUpdateCheck,
-                                patchUpdatesEnabled = patchUpdatesEnabled
+                                patchUpdatesEnabled = patchUpdatesEnabled,
+                                microgIconHidden = microgIconHidden
                             )
                         )
                     },

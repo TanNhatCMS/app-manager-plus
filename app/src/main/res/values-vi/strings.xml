@@ -219,4 +219,7 @@
     <string name="installed_label">Đã cài</string>
     <string name="latest_label">Mới nhất</string>
     <string name="install_failed_signature_mismatch_message">Đã chặn cài %1$s: chữ ký của APK tải về không khớp fingerprint của nhà phát hành (%2$s). File có thể không phải bản chính thức.</string>
+    <string name="settings_section_microg">MicroG</string>
+    <string name="microg_hide_icon">Ẩn icon MicroG trên launcher</string>
+    <string name="microg_hide_icon_description">Cài bản MicroG ẩn icon (noicon) — giống hệt bản thường nhưng không có icon ở màn hình chính</string>
 </resources>

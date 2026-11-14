@@ -35,7 +35,8 @@ class AppRepositoryImpl @Inject constructor(
     private val appManager: AppManager,
     private val simpleDownloadManager: SimpleDownloadManager,
     private val packageInstaller: RevancedPackageInstaller,
-    private val githubReleaseResolver: com.app.manager.data.manager.GitHubReleaseResolver
+    private val githubReleaseResolver: com.app.manager.data.manager.GitHubReleaseResolver,
+    private val preferencesManager: com.app.manager.data.local.preferences.PreferencesManager
 ) : AppRepository {
 
     @Volatile
@@ -172,6 +173,9 @@ class AppRepositoryImpl @Inject constructor(
         val withoutCatalogMicrog = apps.filterNot { app ->
             app.vendor == "morphe" && app.packageName == Config.MORPHE_MICROG_PACKAGE
         }
+        val noicon = runCatching {
+            preferencesManager.getAppConfig().microgIconHidden
+        }.getOrDefault(false)
         val stable = RevancedApp(
             packageName = Config.MORPHE_MICROG_PACKAGE,
             title = "MicroG RE",
@@ -188,6 +192,7 @@ class AppRepositoryImpl @Inject constructor(
             channel = "stable",
             githubRepo = Config.MORPHE_MICROG_REPO,
             githubPrerelease = false,
+            githubAssetNoicon = noicon,
             signingSha256 = Config.MORPHE_MICROG_FINGERPRINT
         )
         val beta = stable.copy(

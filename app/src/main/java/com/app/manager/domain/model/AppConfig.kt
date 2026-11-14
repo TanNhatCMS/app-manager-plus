@@ -13,7 +13,8 @@ data class AppConfig(
     val showBeta: Boolean = false,    // hiển thị phiên bản thử nghiệm
     val showUpdatePrompt: Boolean = true,   // "N updates available" popup on launch
     val autoUpdateCheck: Boolean = true,    // daily background update notification
-    val patchUpdatesEnabled: Boolean = true // offer patch-only updates (same app version)
+    val patchUpdatesEnabled: Boolean = true, // offer patch-only updates (same app version)
+    val microgIconHidden: Boolean = false    // install the icon-hidden (noicon) MicroG build
 )
 
 /**
