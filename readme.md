@@ -1,4 +1,4 @@
-# RV Manager Plus 3.0 🚀
+# App Manager Plus 2.1 🚀
 
 *__Disclaimer:__ This project is an independent application inspired by the classic Vanced Manager concept. It is not affiliated with, endorsed by, or connected to any official ReVanced projects or trademark owners. This is a community-driven tool designed for better app management, installation, and updates.*
 
@@ -22,22 +22,32 @@
 
 ---
 
-## 🌟 Introducing RV Manager Plus 3.0
+## 🌟 Introducing App Manager Plus 2.1
 
-A completely redesigned Android application for managing modded applications with modern architecture, enhanced user experience, and professional-grade features. Built from the ground up using cutting-edge Android development practices.
+A redesigned Android application for managing modded applications — installs **YouTube Morphe / ReVanced** builds, keeps **MicroG (GmsCore)** up to date automatically, and publishes its own app catalog. Built with Kotlin + Jetpack Compose (Clean Architecture, Hilt, Room).
 
 ![Main Screen](screenshots/main_screen.jpg)
 
-### ✨ What's New in Version 3.0
+### ✨ What's New in Version 2.1.0
 
-RV Manager Plus 3.0 represents a complete overhaul of the previous versions, addressing all major issues and introducing groundbreaking features:
+Ported the feature wave from upstream and added catalog automation:
+
+- **🔧 PackageInstaller install pipeline** — real install sessions (no more ACTION_VIEW), classified failure reasons (signature conflict, downgrade, storage, HyperOS "Permission denied" → BLOCKED), automatic one-shot retry with the system dialog on ROM refusals (Xiaomi #63)
+- **✍️ Signature verification** — catalog-published SHA-256 fingerprints are checked against the downloaded APK before any install session is committed
+- **📥 Resumable downloads** — HTTP Range resume (`.part` + metadata), 45s stall watchdog, adaptive retries; cancelling a download actually kills the transfer
+- **📺 3-screen navigation** — App list → App detail page → full-screen Settings (Compose NavHost, single shared AppBloc)
+- **🔔 Update prompt & "Update all"** — launch-time update prompt with per-app checkboxes and daily snooze, "Update all" banner, per-filter count badges, sort options, persisted filters
+- **🩹 Patch-only updates** — same app version, newer patches: detected via catalog `patchVersion`/`updatedAt` + install records ("New patch: x" badge, Settings switch)
+- **🧠 MicroG managed by the app** — MicroG RE entries are built into the manager (not apps-v2.json): stable follows the **Latest** release and dev follows the **Pre-release** of [MorpheApp/MicroG-RE](https://github.com/MorpheApp/MicroG-RE/releases), the APK **variant is matched to the device ABI** (arm64-v8a / armeabi-v7a / universal), optional **icon-hidden (noicon)** build, first-run install suggestion, dependent-app warning before uninstall
+- **🛠 Debug logs** — copy + save-as-file (SAF), session header (device/ROM/ABIs), crash capture, one-line HTTP logging
+- **🌐 App UI languages: English + Tiếng Việt** (README translated to more languages under `docs/`)
 
 ## 🎯 Key Features & Improvements
 
-### 🌍 **Comprehensive Multi-Language Support (20+ Languages)**
-- **Professional Translations**: Native support for 20+ languages including English, Vietnamese, Chinese, Hindi, Indonesian, Spanish, Korean, French, German, and more
-- **Visual Language Selector**: Beautiful flag icons with intuitive language switching
-- **Smart Auto-Restart**: Automatic app restart when changing languages for seamless experience
+### 🌍 **Language Support (English + Tiếng Việt)**
+- **In-app languages**: English and Tiếng Việt with instant switching (per-app locale)
+- **README translations**: Additional translated documentation under `docs/` (zh, es, fr, de, pt, ko, id, ar, cs)
+- **Visual Language Selector**: Flag icons with a dropdown in the full-screen Settings page
 
 ![Chinese Interface](screenshots/main_screen_zh.jpg) ![Indonesian Light Theme](screenshots/main_screen_id_lighttheme.jpg)
 
@@ -118,10 +128,10 @@ RV Manager Plus 3.0 represents a complete overhaul of the previous versions, add
 ## 🛠️ **Technology Stack**
 
 ### **Modern Android Development**
-- **Kotlin 2.0.21**: Latest language features and performance improvements
+- **Kotlin 2.1.21**: Latest language features and performance improvements
 - **Jetpack Compose**: Modern declarative UI framework
 - **Material Design 3**: Latest Google design system
-- **Android Gradle Plugin 8.8.2**: Cutting-edge build tools
+- **Android Gradle Plugin 8.13.0**: Cutting-edge build tools (compileSdk 35)
 
 ### **Architecture & Patterns**
 - **Clean Architecture**: Domain-driven design with clear separation
@@ -131,8 +141,8 @@ RV Manager Plus 3.0 represents a complete overhaul of the previous versions, add
 - **Dependency Injection**: Hilt-powered DI container
 
 ### **Networking & Performance**
-- **Retrofit 2.11.0**: Type-safe HTTP client
-- **OkHttp 4.12.0**: Optimized networking with connection pooling
+- **OkHttp 4.12.0**: HTTP client for catalog fetches, downloads and install sessions
+- **WorkManager**: Daily background update-check notifications
 - **Kotlinx Serialization**: Efficient JSON parsing
 - **Coroutines**: Asynchronous programming with structured concurrency
 - **Room Database**: Local data persistence for download states
@@ -154,7 +164,7 @@ RV Manager Plus 3.0 represents a complete overhaul of the previous versions, add
 ## 🚀 **Installation Guide**
 
 ### **Method 1: Direct APK Download**
-1. Download the latest APK from [Releases](https://github.com/vancedto/vanced-manager-plus/releases)
+1. Download the latest APK from [Releases](https://github.com/TanNhatCMS/app-manager-plus/releases)
 2. Enable "Install from Unknown Sources" in Android settings
 3. Install the APK file
 4. Grant necessary permissions
@@ -162,8 +172,8 @@ RV Manager Plus 3.0 represents a complete overhaul of the previous versions, add
 ### **Method 2: Build from Source**
 ```bash
 # Clone the repository
-git clone https://github.com/vancedto/vanced-manager-plus.git
-cd rv-manager
+git clone https://github.com/TanNhatCMS/app-manager-plus.git
+cd app-manager-plus
 
 # Build debug version
 ./gradlew assembleDebug
@@ -214,22 +224,12 @@ cd rv-manager
 
 ## 🌐 **Supported Languages**
 
+The app UI ships with two languages; the *README* is translated to more languages under [`docs/`](docs/).
+
 | Language | Code | Native Name |
 |----------|------|-------------|
 | 🇬🇧 English | en | English |
 | 🇻🇳 Vietnamese | vi | Tiếng Việt |
-| 🇨🇳 Chinese | zh | 中文 |
-| 🇮🇳 Hindi | hi | हिन्दी |
-| 🇮🇩 Indonesian | id | Bahasa Indonesia |
-| 🇧🇷 Portuguese | pt | Português (Brasil) |
-| 🇹🇷 Turkish | tr | Türkçe |
-| 🇲🇽 Spanish | es | Español (México) |
-| 🇰🇷 Korean | ko | 한국어 |
-| 🇫🇷 French | fr | Français |
-| 🇵🇱 Polish | pl | Polski |
-| 🇩🇪 German | de | Deutsch |
-| 🇨🇿 Czech | cs | Čeština |
-| And 8+ more... | | |
 
 ## 🛡️ **Security & Privacy**
 
@@ -248,12 +248,10 @@ cd rv-manager
 - **Enhanced Performance**: Faster, more stable operation
 - **Multi-language Support**: 20+ languages vs previous 2-3
 
-### **Migration Steps**
-1. **Backup**: Export settings if needed (auto-migration available)
-2. **Uninstall**: Remove old version
-3. **Install**: Install RV Manager Plus 3.0
-4. **Configure**: Set language and theme preferences
-5. **Enjoy**: Experience the improved functionality
+### **Upgrading to 2.1.0**
+1. **Install over the old version** — signed with the same key, no uninstall needed (settings and favorites are kept)
+2. **Re-grant permissions** if the system asks after the update
+3. **Enjoy** — the catalog now carries app + patch versions and the manager keeps MicroG current automatically
 
 ## 📊 **Performance Improvements**
 
@@ -268,6 +266,16 @@ cd rv-manager
 - **Zero Installation Failures**: Comprehensive installation monitoring
 - **Background Stability**: Persistent state management across app lifecycle
 - **Crash Prevention**: Defensive programming and exception handling
+
+## ⚙️ **Automated Builds & Catalog**
+
+This repository ships its own **catalog** (`apps-v2.json`, fetched by the app from GitHub raw) and a **build/release pipeline** (`.github/workflows/release-morphe.yml`):
+
+- **Daily at 06:30 UTC** (and on demand): YouTube is patched with Morphe using the [TanNhatCMS/Morphe-AutoBuilds](https://github.com/TanNhatCMS/Morphe-AutoBuilds) pipeline, signed with the public keystore, and published as two GitHub Releases on this repository:
+  - tag **`stable`** → `YouTube_Morphe-v<yt>-patches-<pv>.apk` — tracks the newest **Latest** Morphe patches
+  - tag **`dev`** → `YouTube_Morphe_Dev-v<yt>-patches-<pv>.apk` (pre-release) — tracks the patches **dev** branch
+- After publishing, the workflow **rewrites the YouTube Morphe entries of `apps-v2.json`** (version, download URL, patch version) and commits them — the manager picks the new build up automatically.
+- **MicroG RE** is not served from the catalog: the manager itself follows [MorpheApp/MicroG-RE](https://github.com/MorpheApp/MicroG-RE/releases) (stable = Latest, dev = Pre-release), picks the APK variant matching the device ABI, and verifies the published signing fingerprint before installing.
 
 ## 🤝 **Contributing**
 
@@ -288,14 +296,24 @@ We welcome contributions from the community!
 - Android SDK API 35
 
 # Setup
-git clone https://github.com/vancedto/vanced-manager-plus.git
-cd rv-manager
+git clone https://github.com/TanNhatCMS/app-manager-plus.git
+cd app-manager-plus
 ./gradlew build
 ```
 
 ## 📝 **Changelog**
 
-### **Version 3.0.0 (Latest)**
+### **Version 2.1.0 (build 4) — Latest**
+- ✅ PackageInstaller install pipeline with classified failures, Xiaomi retry and signature verification
+- ✅ Resumable downloads (HTTP Range + stall watchdog) and real download cancellation
+- ✅ 3-screen navigation (App list → Detail → Settings)
+- ✅ Update prompt, "Update all", filter badges, sorting, daily update-check notification
+- ✅ Patch-only update detection (`patchVersion`/`updatedAt` in catalog)
+- ✅ MicroG RE tracked in-app from MorpheApp/MicroG-RE (ABI-matched variant, noicon option, signature check)
+- ✅ Debug logs: save-as-file, session header, crash capture
+- ✅ Automated YouTube Morphe build/release pipeline + auto catalog update
+
+### **Version 3.0.0 (Upstream)**
 - ✅ Complete application rewrite
 - ✅ Fixed all download and installation issues
 - ✅ Added 20+ language support
@@ -319,7 +337,7 @@ cd rv-manager
 - **Language Not Changing**: Restart app after language selection
 
 ### **Getting Help**
-- **GitHub Issues**: [Report bugs or request features](https://github.com/vancedto/vanced-manager-plus/issues)
+- **GitHub Issues**: [Report bugs or request features](https://github.com/TanNhatCMS/app-manager-plus/issues)
 - **Documentation**: Check this README and wiki
 - **Community**: Join discussions in Issues section
 
@@ -331,19 +349,20 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - **Android Community**: For open-source libraries and tools
 - **Contributors**: Everyone who helped improve this application
+- **MorpheApp**: For the Morphe CLI, patches and MicroG-RE
 - **Testers**: Community members who provided feedback
 - **Translators**: Contributors who provided language translations
 
 ## 🔗 **Links**
 
-- **Homepage**: [https://vanced.to](https://vanced.to)
-- **Repository**: [https://github.com/vancedto/vanced-manager-plus](https://github.com/vancedto/vanced-manager-plus)
-- **Releases**: [Latest Downloads](https://github.com/vancedto/vanced-manager-plus/releases)
-- **Issues**: [Bug Reports & Feature Requests](https://github.com/vancedto/vanced-manager-plus/issues)
-- **Wiki**: [Documentation](https://github.com/vancedto/vanced-manager-plus/wiki)
+- **Repository**: [https://github.com/TanNhatCMS/app-manager-plus](https://github.com/TanNhatCMS/app-manager-plus)
+- **Releases**: [App releases](https://github.com/TanNhatCMS/app-manager-plus/releases) (stable / dev tags for YouTube Morphe)
+- **Issues**: [Bug Reports & Feature Requests](https://github.com/TanNhatCMS/app-manager-plus/issues)
+- **Build pipeline**: [TanNhatCMS/Morphe-AutoBuilds](https://github.com/TanNhatCMS/Morphe-AutoBuilds)
+- **MicroG**: [MorpheApp/MicroG-RE releases](https://github.com/MorpheApp/MicroG-RE/releases)
 
 ---
 
-**RV Manager Plus 3.0** - The next generation of app management tools. Experience the difference that professional software architecture and user-centered design can make.
+**App Manager Plus** - App management for Morphe/ReVanced builds, with automated releases and self-updating catalog.
 
 *Built with ❤️ by the community, for the community.*
