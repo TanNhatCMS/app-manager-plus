@@ -68,16 +68,21 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           SELECTED: ${{ inputs.channels }}
         run: |
-          CHANNELS="$EVENT_NAME"
-          if [ "$CHANNELS" = "schedule" ] || [ -z "$CHANNELS" ] || [ "$CHANNELS" = "both" ]; then
-            MATRIX='[{"channel":"stable","source":"morphe"},{"channel":"dev","source":"morphe-dev"}]'
-          elif [ "$CHANNELS" = "stable" ]; then
-            MATRIX='[{"channel":"stable","source":"morphe"}]'
-          elif [ "$CHANNELS" = "dev" ]; then
-            MATRIX='[{"channel":"dev","source":"morphe-dev"}]'
+          # schedule → both channels; manual dispatch → follow the selected input.
+          if [ "$EVENT_NAME" = "schedule" ]; then
+            CHANNELS="both"
           else
-            MATRIX='[]'
+            CHANNELS="${SELECTED:-both}"
           fi
+          case "$CHANNELS" in
+            stable)
+              MATRIX='[{"channel":"stable","source":"morphe"}]' ;;
+            dev)
+              MATRIX='[{"channel":"dev","source":"morphe-dev"}]' ;;
+            *)
+              CHANNELS="both"
+              MATRIX='[{"channel":"stable","source":"morphe"},{"channel":"dev","source":"morphe-dev"}]' ;;
+          esac
           echo "Channels requested: $CHANNELS → matrix: $MATRIX"
           echo "build_matrix=$MATRIX" >> "$GITHUB_OUTPUT"
 
