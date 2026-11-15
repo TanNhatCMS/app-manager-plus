@@ -1,0 +1,439 @@
+name: Release YouTube Morphe (Stable & Dev)
+#
+# Builds YouTube patched with Morphe from the TanNhatCMS/Morphe-AutoBuilds
+# pipeline (same commands as its "Local Build Instructions") and publishes
+# each channel as its own GitHub Release ON THIS REPOSITORY, so the app's
+# catalog (apps-v2.json) can link the assets here:
+#
+#   stable → release tag `stable`  (morphe-patches "latest")
+#   dev    → release tag `dev`     (morphe-patches "dev", marked pre-release)
+#
+# Each run REPLACES the previous build's APK assets on the same tag (clean
+# release cycle — the tag never moves, so /releases/download/<tag>/<file>
+# links stay valid for the current build's file name).
+#
+# After publishing, the update-catalog job rewrites the YouTube Morphe
+# entries of apps-v2.json (versionName, downloadUrl, patchVersion,
+# description, updatedAt) and commits the change to the default branch —
+# the manager fetches this catalog from raw.githubusercontent.com, so the
+# new build shows up automatically.
+#
+# No extra secrets required: builds and pushes with the built-in GITHUB_TOKEN.
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+on:
+  schedule:
+    - cron: '30 6 * * *' # Daily at 06:30 UTC
+  workflow_dispatch:
+    inputs:
+      channels:
+        description: "Which channels to build & release"
+        type: choice
+        default: both
+        options:
+          - both
+          - stable
+          - dev
+      release:
+        description: "Publish to GitHub Releases (uncheck = build artifacts only)"
+        type: boolean
+        default: true
+      update_catalog:
+        description: "Update apps-v2.json catalog and commit (after release)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-morphe
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build ${{ matrix.channel }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { channel: stable, source: morphe }
+          - { channel: dev, source: morphe-dev }
+    if: ${{ github.event_name == 'schedule' || inputs.channels == 'both' || inputs.channels == matrix.channel }}
+    services:
+      flaresolverr:
+        image: ghcr.io/flaresolverr/flaresolverr:latest
+        ports:
+          - 8192:8191
+        options: --shm-size=1gb
+    steps:
+      - name: Checkout This Repository
+        uses: actions/checkout@v4
+
+      - name: Checkout Morphe-AutoBuilds Pipeline
+        uses: actions/checkout@v4
+        with:
+          repository: TanNhatCMS/Morphe-AutoBuilds
+          ref: main
+          path: builder
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Pipeline Dependencies
+        working-directory: builder
+        run: |
+          pip install -r requirements.txt
+          pip install requests beautifulsoup4
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Put the newest Android build-tools (apksigner) on PATH
+        run: |
+          BT_DIR="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
+          echo "Using build-tools: $BT_DIR"
+          echo "$BT_DIR" >> "$GITHUB_PATH"
+          "$BT_DIR/apksigner" --version
+
+      - name: Wait for FlareSolverr
+        run: |
+          for i in $(seq 1 30); do
+            if curl -s http://localhost:8192/ > /dev/null 2>&1; then
+              echo "FlareSolverr is ready."
+              break
+            fi
+            echo "Waiting... ($i/30)"
+            sleep 5
+          done
+
+      - name: Build APK (patch YouTube with Morphe)
+        working-directory: builder
+        env:
+          APP_NAME: youtube
+          SOURCE: ${{ matrix.source }}
+          ARCH: universal
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FLARESOLVERR_URL: http://localhost:8192/v1
+        run: |
+          echo "Building youtube with ${{ matrix.source }} (universal)..."
+          python -m src
+
+      - name: Collect and Rename Build Output
+        if: always()
+        run: |
+          mkdir -p dist
+          shopt -s nullglob
+          apks=(builder/youtube-universal-*.apk)
+          if [ ${#apks[@]} -eq 0 ]; then
+            echo "No APK produced for ${{ matrix.channel }}." | tee dist/build-info.txt
+            exit 0
+          fi
+
+          APK_SRC="${apks[0]}"
+          YT_VER="$(basename "$APK_SRC" | sed -E 's/.*-v([0-9][0-9.]*)\.apk/\1/')"
+          PATCH_FILE="$(find builder -name '*.mpp' -printf '%f\n' 2>/dev/null | head -1 || true)"
+          PATCH_VER="$(printf '%s' "${PATCH_FILE%.*}" | grep -oE '[0-9]+(\.[0-9]+)+(-[0-9A-Za-z.]+)?$' | tail -1 || true)"
+
+          # Catalog-style file names: the app's apps-v2.json downloadUrl points at these.
+          if [ "${{ matrix.channel }}" = "dev" ]; then
+            OUT_NAME="YouTube_Morphe_Dev-v${YT_VER}${PATCH_VER:+-patches-${PATCH_VER}}.apk"
+          else
+            OUT_NAME="YouTube_Morphe-v${YT_VER}${PATCH_VER:+-patches-${PATCH_VER}}.apk"
+          fi
+
+          cp -f "$APK_SRC" "dist/$OUT_NAME"
+          {
+            echo "channel=${{ matrix.channel }}"
+            echo "youtube_version=$YT_VER"
+            echo "patches_version=${PATCH_VER:-unknown}"
+            echo "apk_file=$OUT_NAME"
+            echo "built_at=$(date -u '+%Y-%m-%d %H:%M UTC')"
+          } > dist/build-info.txt
+          cat dist/build-info.txt
+
+      - name: Upload APK Artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: morphe-${{ matrix.channel }}
+          path: dist/
+          if-no-files-found: warn
+
+  release:
+    name: Release ${{ matrix.channel }}
+    needs: [build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { channel: stable, tag: stable, prerelease: 'false', title: 'YouTube Morphe — Stable (Latest)' }
+          - { channel: dev, tag: dev, prerelease: 'true', title: 'YouTube Morphe — Dev (Pre-release)' }
+    if: ${{ !cancelled() && (github.event_name == 'schedule' || inputs.release) }}
+    env:
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Checkout This Repository
+        uses: actions/checkout@v4
+
+      - name: Download Build Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: morphe-${{ matrix.channel }}
+          path: dist/
+        continue-on-error: true
+
+      - name: Check for Built APK
+        id: check
+        run: |
+          apk_count="$(find dist -name 'YouTube_Morphe*.apk' 2>/dev/null | wc -l)"
+          echo "APKs found for ${{ matrix.channel }}: $apk_count"
+          echo "skip=$([ "$apk_count" -eq 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare Release Notes
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          # shellcheck disable=SC1091
+          source dist/build-info.txt
+          PRERELEASE_NOTE=""
+          if [ "${{ matrix.channel }}" = "dev" ]; then
+            PRERELEASE_NOTE="> ⚠️ **Pre-release build** from the Morphe patches \`dev\` branch — expect occasional breakage."
+          fi
+          cat > release-notes.md <<EOF
+          # ${{ matrix.title }}
+
+          $PRERELEASE_NOTE
+
+          | | |
+          |---|---|
+          | **YouTube** | v${youtube_version:-unknown} |
+          | **Morphe patches** | ${patches_version:-unknown} |
+          | **Architecture** | universal (arm64-v8a + armeabi-v7a) |
+          | **Built** | ${built_at:-unknown} |
+
+          Install the APK directly; **Morphe MicroG (GmsCore)** is required for it to work — get it from the [MicroG-RE releases](https://github.com/MorpheApp/MicroG-RE/releases/latest).
+
+          ## Notes
+          - Signed with the pipeline's public keystore — updates install cleanly over previous builds of the same channel.
+          - Each new build **replaces** the APK assets of this release; older files are removed.
+          - Linked by App Manager Plus (**apps-v2.json**) — the download URLs in the catalog point at this release.
+
+          ---
+          *Automated build from [TanNhatCMS/Morphe-AutoBuilds](https://github.com/TanNhatCMS/Morphe-AutoBuilds). Educational purposes — not affiliated with Google or the Morphe team.*
+          EOF
+
+      - name: Refresh Release Assets
+        if: steps.check.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ matrix.tag }}
+          TITLE: ${{ matrix.title }}
+          PRERELEASE: ${{ matrix.prerelease }}
+        run: |
+          set -euo pipefail
+
+          APK_FILE="$(find dist -name 'YouTube_Morphe*.apk' | head -1)"
+          APK_NAME="$(basename "$APK_FILE")"
+          echo "Releasing $APK_NAME → tag $TAG"
+
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            echo "Release $TAG exists — deleting superseded APK assets."
+            RELEASE_ID="$(gh api "repos/$GH_REPO/releases" \
+              | jq -r --arg tag "$TAG" '.[] | select(.tag_name == $tag) | .id' | head -1)"
+            if [ -n "$RELEASE_ID" ]; then
+              gh api "repos/$GH_REPO/releases/$RELEASE_ID/assets" --paginate \
+                | jq -r '.[] | select(.name | startswith("YouTube_Morphe")) | "\(.id) \(.name)"' \
+                | while read -r asset_id asset_name; do
+                    echo "  deleting old asset $asset_name"
+                    gh api -X DELETE "repos/$GH_REPO/releases/assets/$asset_id"
+                  done
+            fi
+          else
+            echo "Creating release $TAG."
+            CREATE_ARGS=(--target "${{ github.sha }}" --title "$TITLE" --notes-file release-notes.md)
+            if [ "$PRERELEASE" = "true" ]; then
+              CREATE_ARGS+=(--prerelease)
+            fi
+            gh release create "$TAG" "${CREATE_ARGS[@]}"
+          fi
+
+          echo "Uploading $APK_NAME (clobber)."
+          gh release upload "$TAG" "$APK_FILE" --clobber
+
+          # Keep the release body in sync with the newest build info.
+          gh release edit "$TAG" --title "$TITLE" --notes-file release-notes.md
+
+      - name: Job Summary
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          cat dist/build-info.txt >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+          echo "Released to tag \`${{ matrix.tag }}\` on $GH_REPO." >> "$GITHUB_STEP_SUMMARY"
+
+  update-catalog:
+    name: Update apps-v2.json Catalog
+    needs: [release]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: ${{ !cancelled() && (github.event_name == 'schedule' || inputs.update_catalog) }}
+    steps:
+      - name: Checkout This Repository
+        uses: actions/checkout@v4
+
+      - name: Download Stable Build Info
+        uses: actions/download-artifact@v4
+        with:
+          name: morphe-stable
+          path: dist-stable/
+        continue-on-error: true
+
+      - name: Download Dev Build Info
+        uses: actions/download-artifact@v4
+        with:
+          name: morphe-dev
+          path: dist-dev/
+        continue-on-error: true
+
+      - name: Update Catalog Entries
+        run: |
+          set -euo pipefail
+          REPO_URL="https://github.com/${{ github.repository }}/releases/download"
+
+          python3 - "$REPO_URL" <<'PYEOF'
+          import io, json, os, re, sys, time
+          from pathlib import Path
+
+          repo_url = sys.argv[1]
+          now_iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+          catalog_path = Path("apps-v2.json")
+          catalog = json.loads(io.open(catalog_path, encoding="utf-8").read())
+
+          def channel_info(channel, dist_dir, tag):
+              """Read the build artifact's build-info.txt, or None when that channel did not build."""
+              info_path = Path(dist_dir) / "build-info.txt"
+              if not info_path.exists():
+                  return None
+              info = {}
+              for line in io.open(info_path, encoding="utf-8"):
+                  if "=" in line:
+                      key, value = line.rstrip("\n").split("=", 1)
+                      info[key] = value
+              apk_file = info.get("apk_file", "")
+              if not apk_file or not apk_file.lower().endswith(".apk"):
+                  return None
+              return {
+                  "channel": channel,
+                  "tag": tag,
+                  "youtube_version": info.get("youtube_version", "unknown"),
+                  "patches_version": info.get("patches_version", "unknown"),
+                  "apk_file": apk_file,
+                  "download_url": f"{repo_url}/{tag}/{apk_file}",
+              }
+
+          builds = [
+              b for b in (
+                  channel_info("stable", "dist-stable", "stable"),
+                  channel_info("dev", "dist-dev", "dev"),
+              )
+              if b
+          ]
+          if not builds:
+              print("No build artifacts with an APK — nothing to update.")
+              sys.exit(0)
+
+          # The build/release channel is named "dev", the catalog marks that
+          # channel as "beta" (apps-v2.json convention).
+          CATALOG_CHANNEL = {"stable": "stable", "dev": "beta"}
+
+          vendors = catalog.get("vendors", {})
+          morphe_apps = vendors.get("morphe", {}).get("apps", [])
+          updated = []
+
+          for build in builds:
+              changed = False
+              catalog_channel = CATALOG_CHANNEL[build["channel"]]
+              for entry in morphe_apps:
+                  if entry.get("packageName") != "app.morphe.android.youtube":
+                      continue
+                  if entry.get("channel") != catalog_channel:
+                      continue
+                  entry["versionName"] = build["youtube_version"]
+                  entry["versionCode"] = 2147483647
+                  entry["description"] = (
+                      f"YouTube Morphe v{build['youtube_version']} "
+                      f"(Morphe Patches v{build['patches_version']})"
+                  )
+                  entry["downloadUrl"] = build["download_url"]
+                  entry["patchVersion"] = build["patches_version"]
+                  entry["updatedAt"] = now_iso
+                  changed = True
+                  updated.append(
+                      f"  {build['channel']}: v{build['youtube_version']} "
+                      f"(patches v{build['patches_version']}) → {build['download_url']}"
+                  )
+                  break
+              if not changed:
+                  print(f"⚠️ No catalog entry found for channel '{build['channel']}' — skipped.")
+
+          if not updated:
+              print("No entries updated.")
+              sys.exit(0)
+
+          io.open(catalog_path, "w", encoding="utf-8", newline="\n").write(
+              json.dumps(catalog, ensure_ascii=False, indent=2) + "\n"
+          )
+          print("Catalog updated:")
+          print("\n".join(updated))
+          PYEOF
+
+      - name: Commit and Push Catalog
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- apps-v2.json; then
+            echo "Catalog unchanged — nothing to commit."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add apps-v2.json
+
+          COMMIT_MSG="Update YouTube Morphe catalog (auto build $(date -u '+%d-%m-%Y'))"
+          git commit -m "$COMMIT_MSG"
+
+          # Push with a rebase retry, in case a manual catalog edit landed meanwhile.
+          for attempt in 1 2 3; do
+            if git push origin HEAD:main; then
+              echo "Catalog pushed to main."
+              exit 0
+            fi
+            echo "Push rejected (attempt $attempt) — rebasing on the latest main."
+            git fetch origin main
+            git rebase origin/main
+          done
+          echo "❌ Could not push the catalog update after 3 attempts."
+          exit 1
+
+  cleanup:
+    name: Cleanup Workflow Runs
+    needs: [build, release]
+    runs-on: ubuntu-latest
+    if: always()
+    permissions:
+      actions: write
+    steps:
+      - name: Delete Old Workflow Runs
+        uses: Mattraks/delete-workflow-runs@v2
+        with:
+          retain_days: 3
+          keep_minimum_runs: 5
