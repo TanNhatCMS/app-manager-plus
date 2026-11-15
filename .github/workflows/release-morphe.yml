@@ -189,7 +189,7 @@ jobs:
             echo "youtube_version=$YT_VER"
             echo "patches_version=${PATCH_VER:-unknown}"
             echo "apk_file=$OUT_NAME"
-            echo "built_at=$(date -u '+%Y-%m-%d %H:%M UTC')"
+            echo "built_at=$(date -u '+%Y-%m-%dT%H:%MZ')"
           } > dist/build-info.txt
           cat dist/build-info.txt
 
@@ -236,8 +236,18 @@ jobs:
       - name: Prepare Release Notes
         if: steps.check.outputs.skip == 'false'
         run: |
-          # shellcheck disable=SC1091
-          source dist/build-info.txt
+          # Parse build-info.txt without `source`: values may contain spaces.
+          youtube_version="unknown"
+          patches_version="unknown"
+          built_at="unknown"
+          while IFS='=' read -r key value; do
+            case "$key" in
+              youtube_version) youtube_version="$value" ;;
+              patches_version) patches_version="$value" ;;
+              built_at) built_at="$value" ;;
+            esac
+          done < dist/build-info.txt
+
           PRERELEASE_NOTE=""
           if [ "${{ matrix.channel }}" = "dev" ]; then
             PRERELEASE_NOTE="> ⚠️ **Pre-release build** from the Morphe patches \`dev\` branch — expect occasional breakage."
@@ -249,10 +259,10 @@ jobs:
 
           | | |
           |---|---|
-          | **YouTube** | v${youtube_version:-unknown} |
-          | **Morphe patches** | ${patches_version:-unknown} |
+          | **YouTube** | v${youtube_version} |
+          | **Morphe patches** | ${patches_version} |
           | **Architecture** | universal (arm64-v8a + armeabi-v7a) |
-          | **Built** | ${built_at:-unknown} |
+          | **Built** | ${built_at} |
 
           Install the APK directly; **Morphe MicroG (GmsCore)** is required for it to work — get it from the [MicroG-RE releases](https://github.com/MorpheApp/MicroG-RE/releases/latest).
 
