@@ -29,7 +29,7 @@
           "iconUrl": "https://avatars.githubusercontent.com/u/246280111?s=48&v=4",
           "downloadUrl": "https://github.com/TanNhatCMS/app-manager-plus/releases/download/stable/YouTube_Morphe-v21.30.216-patches-2.3.0.apk",
           "patchVersion": "2.3.0",
-          "updatedAt": "2026-11-24T18:08:03Z",
+          "updatedAt": "2026-11-25T17:31:36Z",
           "requiresMicroG": true,
           "index": 1
         },
@@ -40,11 +40,11 @@
           "title": "YouTube Morphe Thử nghiệm",
           "versionCode": 2147483647,
           "versionName": "21.30.216",
-          "description": "YouTube Morphe v21.30.216 (Morphe Patches v2.4.0-dev.11)",
+          "description": "YouTube Morphe v21.30.216 (Morphe Patches v2.4.0-dev.12)",
           "iconUrl": "https://avatars.githubusercontent.com/u/246280111?s=48&v=4",
-          "downloadUrl": "https://github.com/TanNhatCMS/app-manager-plus/releases/download/dev/YouTube_Morphe_Dev-v21.30.216-patches-2.4.0-dev.11.apk",
-          "patchVersion": "2.4.0-dev.11",
-          "updatedAt": "2026-11-24T18:08:03Z",
+          "downloadUrl": "https://github.com/TanNhatCMS/app-manager-plus/releases/download/dev/YouTube_Morphe_Dev-v21.30.216-patches-2.4.0-dev.12.apk",
+          "patchVersion": "2.4.0-dev.12",
+          "updatedAt": "2026-11-25T17:31:36Z",
           "requiresMicroG": true,
           "index": 2
         }
